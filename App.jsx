@@ -38,7 +38,7 @@ function Login({onLogin}){
         <button style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:18,padding:"13px"}} onClick={handle}>Connexion</button>
       </div>
       <div style={{marginTop:16,padding:14,background:"rgba(255,255,255,0.08)",borderRadius:14}}>
-        <p style={{color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700,margin:"0 0 10px",textTransform:"uppercase",letterSpacing:"0.06em"}}>Accès démo rapide</p>
+        <p style={{color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700,margin:"0 0 10px",textTransform:"uppercase",letterSpacing:"0.06em"}}>Accès rapide</p>
         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
           {USERS.map(u=><button key={u.id} onClick={()=>onLogin(u)} style={{background:"rgba(255,255,255,0.14)",border:"1px solid rgba(255,255,255,0.2)",color:C.white,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.role==="directeur"?"🎯 Directeur":u.role==="chef_service"?"⚡ Chef de service":`👤 ${u.name.split(" ")[0]}`}</button>)}
         </div>
@@ -127,10 +127,10 @@ function JeunesList({user,presences,onSelect,onNav}){
     </div>
     {vis.map(j=>{const tp=presences.filter(p=>p.date===today&&p.jeuneId===j.id)[0];return(<div key={j.id} style={{...S.card,cursor:"pointer"}} onClick={()=>{onSelect(j);onNav("jeune-detail");}}>
       <div style={{display:"flex",alignItems:"center",gap:13}}>
-        <div style={{width:44,height:44,borderRadius:13,background:C.sable,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:C.gold,flexShrink:0}}>{j.prenom[0]}{j.nom[0]}</div>
+        <div style={{width:44,height:44,borderRadius:13,background:C.sable,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:C.gold,flexShrink:0}}>{j.prenom[0]}{j.nom?j.nom[0]:""}</div>
         <div style={{flex:1}}>
           <div style={{fontWeight:800,fontSize:15,color:C.dark}}>{j.prenom} {j.nom}</div>
-          <div style={{fontSize:11,color:C.light,marginTop:1}}>{j.dept} · {age(j.dob)} ans · <span style={{color:C.gold,fontWeight:700}}>{j.site}</span></div>
+          <div style={{fontSize:11,color:C.light,marginTop:1}}>{j.referentA} / {j.referentB} · <span style={{color:C.gold,fontWeight:700}}>{j.site}</span></div>
         </div>
         {tp&&<div style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8,background:SC[tp.statut]?.bg||C.sable,color:SC[tp.statut]?.text||C.mid}}>{tp.statut}</div>}
         <ChevronRight size={16} color={C.light}/>
@@ -149,14 +149,14 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
   return(<div style={{padding:"14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card,background:C.sable,border:"none",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:14}}>
-        <div style={{width:52,height:52,borderRadius:15,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,color:C.gold}}>{jeune.prenom[0]}{jeune.nom[0]}</div>
-        <div><div style={{fontSize:20,fontWeight:900,color:C.dark}}>{jeune.prenom} {jeune.nom}</div><div style={{fontSize:12,color:C.mid,marginTop:2}}>{jeune.dept} · {age(jeune.dob)} ans</div><div style={{fontSize:11,color:C.gold,fontWeight:700,marginTop:2}}>Site {jeune.site}</div></div>
+        <div style={{width:52,height:52,borderRadius:15,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:20,color:C.gold}}>{jeune.prenom[0]}{jeune.nom?jeune.nom[0]:""}</div>
+        <div><div style={{fontSize:20,fontWeight:900,color:C.dark}}>{jeune.prenom} {jeune.nom}</div><div style={{fontSize:12,color:C.mid,marginTop:2}}>Réf: {jeune.referentA} / {jeune.referentB}</div><div style={{fontSize:11,color:C.gold,fontWeight:700,marginTop:2}}>Site {jeune.site}</div></div>
       </div>
     </div>
     <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto",paddingBottom:4}}>
       {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t}</button>)}
     </div>
-    {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",jeune.prenom],["Nom",jeune.nom],["Date de naissance",fmt(jeune.dob)],["Âge",age(jeune.dob)+" ans"],["Département",jeune.dept],["Site",jeune.site],["Statut",jeune.statut]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
+    {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",jeune.prenom],["Nom",jeune.nom],["Référent A",jeune.referentA],["Référent B",jeune.referentB],["Site",jeune.site],["Statut",jeune.statut]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:11,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:9,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{sc2.icon}</button></div>);})}
     </div></div>}
@@ -251,7 +251,7 @@ function RapportHebdo({user,rapports,presences,evenements}){
             <img src={LOGO} alt="PDSR" style={{width:36,height:36,objectFit:"contain",background:"rgba(255,255,255,0.9)",borderRadius:8,padding:2,marginBottom:8}}/>
             <div style={{color:C.sable,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:5}}>Rapport hebdomadaire</div>
             <div style={{color:C.white,fontWeight:900,fontSize:18}}>{jeune.prenom} {jeune.nom}</div>
-            <div style={{color:"rgba(255,255,255,0.55)",fontSize:12,marginTop:3}}>{jeune.site} · {jeune.dept}</div>
+            <div style={{color:"rgba(255,255,255,0.55)",fontSize:12,marginTop:3}}>{jeune.site} · Réf: {jeune.referentA}/{jeune.referentB}</div>
           </div>
           <div style={{textAlign:"right"}}><div style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>Semaine du</div><div style={{color:C.white,fontWeight:700,fontSize:12}}>{fmt(WEEKDATES[0])} – {fmt(WEEKDATES[6])}</div></div>
         </div>
