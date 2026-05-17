@@ -136,7 +136,7 @@ function JeunesList({user,presences,onSelect,onNav}){
   </div>);
 }
 
-function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onCP}){
+function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onCP,onUpdateJeune}){
   const[tab,setTab]=useState("fiche");
   const jr=rapports.filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const jp=presences.filter(p=>p.jeuneId===jeune.id&&WEEKDATES.includes(p.date));
@@ -153,6 +153,7 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
       {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t}</button>)}
     </div>
     {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",jeune.prenom],["Nom",jeune.nom],["Référent A",jeune.referentA],["Référent B",jeune.referentB],["Site",jeune.site],["Statut",jeune.statut]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
+    {tab==="fiche"&&(user.role==="directeur"||user.role==="chef_service")&&<div style={{...S.card,marginTop:12}}><div style={{fontWeight:700,color:C.dark,fontSize:14,marginBottom:10}}>Dossier du jeune</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{[["emailASE","Email éduc. ASE"],["telASE","Tél. éduc. ASE"],["telParent1","Tél. parent/tuteur 1"],["telParent2","Tél. parent/tuteur 2"],["traitement","Traitement"],["notesDossier","Notes dossier"]].map(([field,label])=><div key={field} style={{gridColumn:field==="traitement"||field==="notesDossier"?"1/-1":"auto"}}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{label}</div>{field==="notesDossier"||field==="traitement"?<textarea style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",minHeight:50,resize:"vertical"}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>:<input style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>}</div>)}</div></div>}
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:11,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:9,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{sc2.icon}</button></div>);})}
     </div></div>}
@@ -371,7 +372,7 @@ export default function App(){
       <main style={{flex:1,overflowY:"auto"}}>
         {page==="dashboard"&&<Dashboard setPage={setPage} user={user} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel}/>}
         {page==="jeunes"&&<JeunesList user={user} presences={presences} onSelect={setSel} onNav={setPage}/>}
-        {page==="jeune-detail"&&sel&&<JeuneDetail jeune={sel} rapports={rapports} presences={presences} evenements={evenements} user={user} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP}/>}
+        {page==="jeune-detail"&&sel&&<JeuneDetail jeune={sel} rapports={rapports} presences={presences} evenements={evenements} user={user} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="rapports"&&<Rapports user={user} rapports={rapports} onSave={addR} onDelete={delR}/>}
         {page==="presences"&&<Presences user={user} presences={presences} onCP={changeP}/>}
         {page==="evenements"&&<Evenements user={user} evenements={evenements} onAdd={addE} onDelete={delE}/>}
