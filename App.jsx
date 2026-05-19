@@ -362,7 +362,7 @@ export default function App(){
   const[appUsers,setAppUsers]=useState(lsData?.users||USERS);
   const[appJeunes,setAppJeunes]=useState(lsData?.jeunes||JEUNES);
   
-  useEffect(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes);},[rapports,presences,evenements,appUsers,appJeunes]);
+  useEffect(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes);},[rapports,presences,evenements,appUsers,appJeunes,user]);
 // Firebase sync
 const fbSkip=useRef(false);
 useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
