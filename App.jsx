@@ -1,8 +1,9 @@
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download } from "lucide-react";
 
 
+export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
 const LS_KEY="pdsr_data";
 const loadLS=()=>{try{const d=JSON.parse(localStorage.getItem(LS_KEY));return d||null;}catch{return null;}};
 const saveLS=(rapports,presences,evenements,users,jeunes)=>{try{localStorage.setItem(LS_KEY,JSON.stringify({rapports,presences,evenements,users,jeunes,ts:Date.now()}));}catch{}};
@@ -355,7 +356,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
   </div>);
 }
 
-export default function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP}){
+function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP}){
   const[tab,setTab]=useState("fiche");
   const mr=(rapports||[]).filter(r=>r.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
   const me=(evenements||[]).filter(e=>e.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -371,7 +372,7 @@ export default function MajeurDetail({majeur,rapports,presences,evenements,user,
     {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune pr\u00e9sence enregistr\u00e9e</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Apr\u00e8s-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"\u2705":"\u274c"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"\u2705":"\u274c"}</td></tr>)}</tbody></table></div>}</div>}
   </div>);
 }
-function App(){
+export default function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const lsData=loadLS();
   const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
