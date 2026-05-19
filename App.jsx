@@ -94,12 +94,12 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage}){
   const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>(user.assignedIds||[]).includes(j.id)):(jeunes||JEUNES);
   const todayP=presences.filter(p=>p.date===today);
   const presents=todayP.filter(p=>p.statut==="Présent").length;
-  const graves=evenements.filter(e=>e.gravite==="Grave").length;
+  const graves=(evenements||[]).filter(e=>e.gravite==="Grave").length;
   return(<div style={{cursor:"pointer",padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <p style={{color:C.light,fontSize:12,margin:"0 0 3px"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
     <h1 style={{fontSize:22,fontWeight:900,color:C.dark,margin:"0 0 20px"}}>Bonjour, {user.name.split(" ")[0]} 👋</h1>
     <div onClick={()=>setPage("rapports")} onClick={()=>setPage("jeunes")} style={{cursor:"pointer",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-      {[{l:"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight},{l:"Présents aujourd'hui",v:`${presents}/${vj.length}`,i:"✓",c:"#2E7D32",bg:"#E8F5E9"},{l:"Rapports ce jour",v:rapports.filter(r=>r.date===today).length,i:"📝",c:C.orange,bg:C.orangeLight},{l:"Incidents graves",v:graves,i:"⚠",c:"#C62828",bg:"#FFEBEE"}].map((s,i)=>(
+      {[{l:"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight},{l:"Présents aujourd'hui",v:`${presents}/${vj.length}`,i:"✓",c:"#2E7D32",bg:"#E8F5E9"},{l:"Rapports ce jour",v:(rapports||[]).filter(r=>r.date===today).length,i:"📝",c:C.orange,bg:C.orangeLight},{l:"Incidents graves",v:graves,i:"⚠",c:"#C62828",bg:"#FFEBEE"}].map((s,i)=>(
         <div key={i} style={{...S.card,display:"flex",alignItems:"center",gap:13,padding:"15px",marginBottom:0}}>
           <div style={{width:42,height:42,borderRadius:11,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>{s.i}</div>
           <div><div style={{fontSize:24,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div><div style={{fontSize:10,color:C.light,fontWeight:600,marginTop:2}}>{s.l}</div></div>
@@ -143,9 +143,9 @@ function JeunesList({user,jeunes,presences,onSelect,onNav,onUpdateJeune}){
 
 function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onCP,onUpdateJeune}){
   const[tab,setTab]=useState("fiche");const[saved,setSaved]=useState(false);
-  const jr=rapports.filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const jr=(rapports||[]).filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const jp=presences.filter(p=>p.jeuneId===jeune.id&&WEEKDATES.includes(p.date));
-  const je=evenements.filter(e=>e.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const je=(evenements||[]).filter(e=>e.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const tabs=["fiche","rapports","présences","incidents"];
   return(<div style={{padding:"14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card,background:C.sable,border:"none",marginBottom:14}}>
@@ -184,7 +184,7 @@ function Rapports({user,rapports,onSave,onDelete}){
       <button onClick={handle} style={{...S.btnP,width:"100%",justifyContent:"center",background:saved?"#4CAF50":undefined}}>{saved?<><Check size={17}/>Enregistré !</>:<><FileText size={17}/>Enregistrer le rapport</>}</button>
     </div>
     <h3 style={{fontSize:14,fontWeight:800,color:C.dark,margin:"18px 0 10px"}}>Rapports récents</h3>
-    {rapports.filter(r=>vj.some(j=>j.id===r.jeuneId)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).map(r=>{const j=JEUNES.find(j2=>j2.id===r.jeuneId);return(<div key={r.id} style={{...S.card}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{j?.prenom} {j?.nom}</div><div style={{fontSize:11,color:C.gold,fontWeight:700}}>{fmt(r.date)}</div></div><p style={{margin:0,fontSize:12,color:C.mid,lineHeight:1.5}}>{r.observation}</p>{(user.role==="chef_service"||user.role==="directeur")&&<button onClick={(e)=>{e.stopPropagation();if(confirm("Supprimer ce rapport ?"))onDelete(r.id);}} style={{marginTop:6,padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Supprimer</button>}</div>);})}
+    {(rapports||[]).filter(r=>vj.some(j=>j.id===r.jeuneId)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).map(r=>{const j=JEUNES.find(j2=>j2.id===r.jeuneId);return(<div key={r.id} style={{...S.card}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{j?.prenom} {j?.nom}</div><div style={{fontSize:11,color:C.gold,fontWeight:700}}>{fmt(r.date)}</div></div><p style={{margin:0,fontSize:12,color:C.mid,lineHeight:1.5}}>{r.observation}</p>{(user.role==="chef_service"||user.role==="directeur")&&<button onClick={(e)=>{e.stopPropagation();if(confirm("Supprimer ce rapport ?"))onDelete(r.id);}} style={{marginTop:6,padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Supprimer</button>}</div>);})}
   </div>);
 }
 
@@ -212,7 +212,7 @@ function Evenements({user,evenements,onAdd,onDelete}){
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[titre,setTitre]=useState(""),[ desc,setDesc]=useState(""),[ grav,setGrav]=useState("Léger"),[ date2,setDate2]=useState(today),[categ,setCateg]=useState("jeune"),[typeEv,setTypeEv]=useState("incident");
   const[open2,setOpen2]=useState(false),[ saved,setSaved]=useState(false),[ fg,setFg]=useState("Tous");
-  const vis=evenements.filter(e=>{const ok=vj.some(j=>j.id===e.jeuneId);const fok=fg==="Tous"||e.gravite===fg;return ok&&fok;});
+  const vis=(evenements||[]).filter(e=>{const ok=vj.some(j=>j.id===e.jeuneId);const fok=fg==="Tous"||e.gravite===fg;return ok&&fok;});
   const handle=()=>{if(!titre.trim())return;onAdd({jeuneId:categ==="jeune"?+jid:null,date:date2,titre,description:desc,gravite:grav,type:typeEv,categorie:categ});setSaved(true);setTitre("");setDesc("");setTimeout(()=>{setSaved(false);setOpen2(false);},2000);};
   return(<div style={{padding:"18px 14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -240,9 +240,9 @@ function RapportHebdo({user,rapports,presences,evenements}){
   const mj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
   const[jid,setJid]=useState(mj[0]?.id||"");
   const jeune=JEUNES.find(j=>j.id===+jid);
-  const wr=rapports.filter(r=>r.jeuneId===+jid&&WEEKDATES.includes(r.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  const wr=(rapports||[]).filter(r=>r.jeuneId===+jid&&WEEKDATES.includes(r.date)).sort((a,b)=>a.date.localeCompare(b.date));
   const wp=presences.filter(p=>p.jeuneId===+jid&&WEEKDATES.includes(p.date));
-  const we=evenements.filter(e=>e.jeuneId===+jid&&WEEKDATES.includes(e.date));
+  const we=(evenements||[]).filter(e=>e.jeuneId===+jid&&WEEKDATES.includes(e.date));
   const prs=wp.filter(p=>p.statut==="Présent").length,abs=wp.filter(p=>p.statut==="Absent").length,ret=wp.filter(p=>p.statut==="Retard").length;
   return(<div style={{padding:"18px 14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}><h1 style={{fontSize:22,fontWeight:900,color:C.dark,margin:0}}>Rapport hebdomadaire</h1><button style={{...S.btnS}}><Printer size={15}/>Imprimer</button></div>
@@ -282,7 +282,7 @@ function RapportHebdo({user,rapports,presences,evenements}){
 
 function Planning({djiPlan,fatPlan,site}){const[selSite,setSelSite]=useState(site==="Tous"?"Fatick":site);const plan=selSite==="Fatick"?fatPlan:djiPlan;const[month,setMonth]=useState(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");});const WD=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];const y=parseInt(month.split("-")[0]),m=parseInt(month.split("-")[1]);const first=new Date(y,m-1,1),last=new Date(y,m,0);const days=[];for(let d=1;d<=last.getDate();d++){const dt=new Date(y,m-1,d);const key=dt.toISOString().slice(0,10);const info=plan[key]||{};days.push({d,wd:dt.getDay(),key,a:info.a||false,b:info.b||false,n:info.n||"",v:info.v||0});}const prev=()=>{let nm=m-1,ny=y;if(nm<1){nm=12;ny--;}setMonth(ny+"-"+String(nm).padStart(2,"0"));};const next=()=>{let nm=m+1,ny=y;if(nm>12){nm=1;ny++;}setMonth(ny+"-"+String(nm).padStart(2,"0"));};const MN=["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];return(<div>{site==="Tous"&&<div style={{display:"flex",gap:8,marginBottom:12}}><button onClick={()=>setSelSite("Fatick")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Fatick"?C.gold:"#eee",color:selSite==="Fatick"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Fatick</button><button onClick={()=>setSelSite("Djilass")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Djilass"?C.gold:"#eee",color:selSite==="Djilass"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Djilass</button></div>}<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}><button onClick={prev} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>◀</button><h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:0}}>{MN[m]} {y} — Planning {site||"Djilass"}</h2><button onClick={next} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>▶</button></div><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>{WD.map(w=><div key={w} style={{textAlign:"center",fontWeight:700,fontSize:12,color:C.dark,padding:4}}>{w}</div>)}{Array.from({length:first.getDay()}).map((_,i)=><div key={"e"+i}/>)}{days.map(day=>{const bg=day.v?C.orangeLight:day.a&&day.b?"#e0e7ff":day.a?C.sableLight:day.b?"#dbeafe":"#f3f4f6";const today=day.key===new Date().toISOString().slice(0,10);return(<div key={day.key} style={{background:bg,borderRadius:8,padding:6,minHeight:54,border:today?"2px solid "+C.primary:"1px solid #e5e7eb",position:"relative"}}><div style={{fontWeight:700,fontSize:13,color:C.dark}}>{day.d}</div>{day.a&&<div style={{fontSize:10,color:C.primary,fontWeight:600}}>Éq. A</div>}{day.b&&<div style={{fontSize:10,color:"#2563eb",fontWeight:600}}>Éq. B</div>}{day.v?<div style={{fontSize:9,color:C.orange,fontWeight:700}}>VACANCES</div>:null}{day.n&&<div style={{fontSize:9,color:"#6b7280",marginTop:2}}>{day.n}</div>}</div>);})}</div></div>);}
 
-function exportIncidentsXLSX(evenements,jeunes){const rows=[["Date","Jeune","Titre","Description","Gravité"]];evenements.forEach(ev=>{const j=jeunes.find(j2=>j2.id===ev.jeuneId);rows.push([ev.date,j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId),ev.titre,ev.description,ev.gravite||"normal"]);});const bom="﻿";const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incidents_pdsr_"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function exportIncidentsXLSX(evenements,jeunes){const rows=[["Date","Jeune","Titre","Description","Gravité"]];(evenements||[]).forEach(ev=>{const j=jeunes.find(j2=>j2.id===ev.jeuneId);rows.push([ev.date,j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId),ev.titre,ev.description,ev.gravite||"normal"]);});const bom="﻿";const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incidents_pdsr_"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
   const[tab,setTab]=useState("educs");
@@ -297,7 +297,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
   const assignJeune=(jeuneId,educId)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,educateurId:educId?+educId:null}:j));const educ=users.find(u=>u.id===+educId);if(educ&&!educ.assignedIds.includes(jeuneId)){onUpdateUsers(users.map(u=>u.id===+educId?{...u,assignedIds:[...u.assignedIds,jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educId){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
-  const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes(jeunes.filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
+  const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
     <div style={{display:"flex",gap:7,marginBottom:16}}>{[{k:"educs",l:"Éducateurs"},{k:"jeunes",l:"Jeunes"},{k:"creds",l:"Identifiants"}].map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
@@ -357,9 +357,9 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
 
 export default function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP}){
   const[tab,setTab]=useState("fiche");
-  const mr=rapports.filter(r=>r.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const me=evenements.filter(e=>e.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const mp=Object.entries(presences).filter(([k])=>k.startsWith("2")).reduce((acc,[date,v])=>{if(v[majeur.id])acc[date]=v[majeur.id];return acc;},{});
+  const mr=(rapports||[]).filter(r=>r.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const me=(evenements||[]).filter(e=>e.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const mp=Object.entries(presences||{}).filter(([k])=>k.startsWith("2")).reduce((acc,[date,v])=>{if(v[majeur.id])acc[date]=v[majeur.id];return acc;},{});
   const tabs=["fiche","rapports","incidents","presences"];
   return(<div>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,cursor:"pointer"}} onClick={onBack}><ChevronLeft size={18}/><span style={{fontWeight:700,color:C.dark}}>Retour Majeurs</span></div>
@@ -374,7 +374,7 @@ export default function MajeurDetail({majeur,rapports,presences,evenements,user,
 function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const lsData=loadLS();
-  const[rapports,setRapports]=useState(lsData?.rapports||INIT_RAPPORTS),[ presences,setPresences]=useState(lsData?.presences||INIT_PRESENCES),[ evenements,setEvenements]=useState(lsData?.evenements||INIT_EV);
+  const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
   const[appUsers,setAppUsers]=useState(lsData?.users||USERS);
   const[appJeunes,setAppJeunes]=useState(lsData?.jeunes||JEUNES);
   
@@ -382,7 +382,7 @@ function App(){
 // Firebase sync
 const fbSkip=useRef(false);
 useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
-useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(d.rapports);if(d.presences)setPresences(d.presences);if(d.evenements)setEvenements(d.evenements);if(d.jeunes)setAppJeunes(d.jeunes);}})();},[user]);
+useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));if(d.jeunes)setAppJeunes(Array.isArray(d.jeunes)?d.jeunes:Object.values(d.jeunes));}})();},[user]);
 
   if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=JEUNES.filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
   const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation}]);
