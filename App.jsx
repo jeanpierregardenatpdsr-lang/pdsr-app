@@ -377,7 +377,7 @@ export default function App(){
   const lsData=loadLS();
   const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
   const[appUsers,setAppUsers]=useState(lsData?.users||USERS);
-  const[appJeunes,setAppJeunes]=useState(lsData?.jeunes||JEUNES);
+  const[appJeunes,setAppJeunes]=useState(JEUNES);
   
   useEffect(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes);},[rapports,presences,evenements,appUsers,appJeunes,user]);
 // Firebase sync
