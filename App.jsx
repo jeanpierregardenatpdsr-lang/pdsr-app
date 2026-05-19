@@ -383,7 +383,7 @@ export default function App(){
 // Firebase sync
 const fbSkip=useRef(false);
 useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
-useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));if(d.jeunes)setAppJeunes(Array.isArray(d.jeunes)?d.jeunes:Object.values(d.jeunes));}})();},[user]);
+useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));/* jeunes always from JEUNES constant */}})();},[user]);
 
   if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=JEUNES.filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
   const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation}]);
