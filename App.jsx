@@ -91,7 +91,7 @@ function Topbar({title,onMenu,onBack}){
   </header>);
 }
 
-function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage}){
+function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes}){
   const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>(user.assignedIds||[]).includes(j.id)):(jeunes||JEUNES);
   const todayP=presences.filter(p=>p.date===today);
   const presents=todayP.filter(p=>p.statut==="Présent").length;
@@ -398,7 +398,7 @@ useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
       <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined}/>
       <main style={{flex:1,overflowY:"auto"}}>
-        {page==="dashboard"&&<Dashboard setPage={setPage} user={user} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel}/>}
+        {page==="dashboard"&&<Dashboard setPage={setPage} user={user} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes}/>}
         {page==="jeunes"&&<JeunesList user={user} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{MAJEURS.map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:11,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={sel} rapports={rapports} presences={presences} evenements={evenements} user={user} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP}/>}
