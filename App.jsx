@@ -273,7 +273,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     fbSet("hebdo",saved.hebdo);
   };
 
-  const generateDocx=async(jeune)=>{
+  const generateDocx=async(jeune)=>{const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
     const rb=refB(jeune.id);
@@ -287,7 +287,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
         headers:{default:new Header({children:[
           new Table({width:{size:9506,type:WidthType.DXA},columnWidths:[3000,6506],rows:[
             new TableRow({children:[
-              new TableCell({borders,width:{size:3000,type:WidthType.DXA},verticalAlign:"center",children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Association PDSR",bold:true,size:24,font:"Arial"})]})]}),
+              new TableCell({borders,width:{size:3000,type:WidthType.DXA},verticalAlign:"center",children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:logoBuffer,transformation:{width:120,height:100},type:"png",altText:{title:"Logo PDSR",description:"Logo Association PDSR",name:"logo"}})]}),new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:100},children:[new TextRun({text:"Association PDSR",bold:true,size:22,font:"Arial"})]})]}),
               new TableCell({borders,width:{size:6506,type:WidthType.DXA},children:[
                 new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Rapport Hebdomadaire",bold:true,size:28,font:"Arial"})]}),
                 new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:jeune.prenom+" "+jeune.nom,bold:true,size:24,font:"Arial"})]}),
@@ -327,7 +327,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
       const{blob,fileName}=await generateDocx(jeune);
       saveAs(blob,fileName+".docx");
       setSent(true);
-      alert("Fichier "+fileName+".docx t\u00e9l\u00e9charg\u00e9. Pour envoyer par email \u00e0 lmarcille1962@gmail.com et jeanpierregardenatpdsr@gmail.com, joignez ce fichier.");
+      window.open("mailto:lmarcille1962@gmail.com,jeanpierregardenatpdsr@gmail.com?subject="+encodeURIComponent(fileName)+"&body="+encodeURIComponent("Bonjour,\n\nVeuillez trouver ci-joint le rapport hebdomadaire "+fileName+".\n\nCordialement,\nAssociation PDSR"),"_blank");
     }catch(e){alert("Erreur: "+e.message);}
     setSending(false);
   };
@@ -341,7 +341,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
       }catch(e){console.error(e);}
     }
     setSending(false);
-    alert(siteJeunes.length+" rapports g\u00e9n\u00e9r\u00e9s pour "+site+". Envoyez-les par email \u00e0 lmarcille1962@gmail.com et jeanpierregardenatpdsr@gmail.com.");
+    window.open("mailto:lmarcille1962@gmail.com,jeanpierregardenatpdsr@gmail.com?subject="+encodeURIComponent("Rapports hebdo "+site+" S"+weekNum)+"&body="+encodeURIComponent("Bonjour,\n\nVeuillez trouver ci-joints les rapports hebdomadaires de "+site+" semaine S"+weekNum+".\n\nCordialement,\nAssociation PDSR"),"_blank");
   };
 
   return(<div style={{padding:"1rem"}}>
@@ -498,7 +498,7 @@ export default function App(){
 // Firebase sync
 const fbSkip=useRef(false);
 useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
-useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));/* jeunes always from JEUNES constant */}})();},[user]);
+useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));if(d.jeunes){const jArr=Array.isArray(d.jeunes)?d.jeunes:Object.values(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}}})();},[user]);
 
   if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=JEUNES.filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
   const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation}]);
