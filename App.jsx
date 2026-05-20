@@ -1,5 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak, HeadingLevel } from "docx";
+import { saveAs } from "file-saver";
 import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download } from "lucide-react";
 
 
@@ -237,49 +239,162 @@ function Evenements({user,evenements,onAdd,onDelete}){
   </div>);
 }
 
-function RapportHebdo({user,rapports,presences,evenements}){
-  const mj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
-  const[jid,setJid]=useState(mj[0]?.id||"");
-  const jeune=JEUNES.find(j=>j.id===+jid)||{prenom:"?",nom:"",id:0};
-  const wr=(rapports||[]).filter(r=>r.jeuneId===+jid&&WEEKDATES.includes(r.date)).sort((a,b)=>a.date.localeCompare(b.date));
-  const wp=presences.filter(p=>p.jeuneId===+jid&&WEEKDATES.includes(p.date));
-  const we=(evenements||[]).filter(e=>e.jeuneId===+jid&&WEEKDATES.includes(e.date));
-  const prs=wp.filter(p=>p.statut==="Présent").length,abs=wp.filter(p=>p.statut==="Absent").length,ret=wp.filter(p=>p.statut==="Retard").length;
-  return(<div style={{padding:"18px 14px",maxWidth:700,margin:"0 auto"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}><h1 style={{fontSize:22,fontWeight:900,color:C.dark,margin:0}}>Rapport hebdomadaire</h1><button style={{...S.btnS}}><Printer size={15}/>Imprimer</button></div>
-    <div style={{...S.card,marginBottom:14}}><label style={{...S.lbl}}>Jeune concerné</label><select style={{...S.inp}} value={jid} onChange={e=>setJid(e.target.value)}>{mj.map(j=><option key={j.id} value={j.id}>{j.prenom} {j.nom} — {j.site}</option>)}</select></div>
-    {jeune&&<>
-      <div style={{...S.card,background:`linear-gradient(135deg,${C.dark},#3D2800)`,marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <img src={LOGO} alt="PDSR" style={{width:36,height:36,objectFit:"contain",background:"rgba(255,255,255,0.9)",borderRadius:8,padding:2,marginBottom:8}}/>
-            <div style={{color:C.sable,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:5}}>Rapport hebdomadaire</div>
-            <div style={{color:C.white,fontWeight:900,fontSize:18}}>{jeune.prenom} {jeune.nom}</div>
-            <div style={{color:"rgba(255,255,255,0.55)",fontSize:12,marginTop:3}}>{jeune.site} · Réf: {jeune.referentA}/{jeune.referentB}</div>
+function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
+  const allJeunes=jeunes||JEUNES;
+  const mj=user.role==="educateur"?allJeunes.filter(j=>(user.assignedIds||[]).includes(j.id)):allJeunes;
+  const[site,setSite]=useState("Djilass");
+  const siteJeunes=mj.filter(j=>j.site===site);
+  const[selJeune,setSelJeune]=useState("");
+  const[weekNum,setWeekNum]=useState(()=>{const now=new Date();const start=new Date(now.getFullYear(),0,1);return String(Math.ceil(((now-start)/86400000+start.getDay()+1)/7)).padStart(2,"0")});
+  const[groupText,setGroupText]=useState("");
+  const[persoTexts,setPersoTexts]=useState({});
+  const[preview,setPreview]=useState(false);
+  const[sending,setSending]=useState(false);
+  const[sent,setSent]=useState(false);
+  const siteCode=site==="Djilass"?"DJI":"FAT";
+  const getFileName=(j)=>siteCode+"-RH-"+j.prenom.substring(0,3).toUpperCase()+"-S"+weekNum;
+  const refA=(jId)=>{const j=allJeunes.find(x=>x.id===jId);if(!j)return"";const u=USERS.find(u=>u.name===j.referentA);return u?u.name:j.referentA||""};
+  const refB=(jId)=>{const j=allJeunes.find(x=>x.id===jId);if(!j)return"";const u=USERS.find(u=>u.name===j.referentB);return u?u.name:j.referentB||""};
+  
+  useEffect(()=>{
+    const saved=loadLS();
+    if(saved&&saved.hebdo){
+      if(saved.hebdo[site+"_group"])setGroupText(saved.hebdo[site+"_group"]);
+      if(saved.hebdo.perso)setPersoTexts(saved.hebdo.perso);
+    }
+  },[site]);
+
+  const saveHebdoData=()=>{
+    const saved=loadLS()||{};
+    if(!saved.hebdo)saved.hebdo={};
+    saved.hebdo[site+"_group"]=groupText;
+    saved.hebdo.perso={...persoTexts};
+    try{localStorage.setItem(LS_KEY,JSON.stringify({...saved,hebdo:saved.hebdo}));}catch(e){}
+    fbSet("hebdo",saved.hebdo);
+  };
+
+  const generateDocx=async(jeune)=>{
+    const fileName=getFileName(jeune);
+    const ra=refA(jeune.id);
+    const rb=refB(jeune.id);
+    const refs=[ra,rb].filter(Boolean).join(" \u2013 ");
+    const border={style:BorderStyle.SINGLE,size:1,color:"999999"};
+    const borders={top:border,bottom:border,left:border,right:border};
+    const doc=new Document({
+      styles:{default:{document:{run:{font:"Arial",size:22}}}},
+      sections:[{
+        properties:{page:{size:{width:11906,height:16838},margin:{top:1200,right:1200,bottom:1200,left:1200}}},
+        headers:{default:new Header({children:[
+          new Table({width:{size:9506,type:WidthType.DXA},columnWidths:[3000,6506],rows:[
+            new TableRow({children:[
+              new TableCell({borders,width:{size:3000,type:WidthType.DXA},verticalAlign:"center",children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Association PDSR",bold:true,size:24,font:"Arial"})]})]}),
+              new TableCell({borders,width:{size:6506,type:WidthType.DXA},children:[
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Rapport Hebdomadaire",bold:true,size:28,font:"Arial"})]}),
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:jeune.prenom+" "+jeune.nom,bold:true,size:24,font:"Arial"})]}),
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Semaine S"+weekNum,size:22,font:"Arial"})]}),
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Groupe de "+site.toUpperCase(),bold:true,size:22,font:"Arial"})]})
+              ]})
+            ]})
+          ]})
+        ]})},
+        footers:{default:new Footer({children:[
+          new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:200},children:[new TextRun({text:refs,bold:true,size:20,font:"Arial"})]}),
+          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"\u00c9ducateurs sp\u00e9cialis\u00e9s",italics:true,size:18,font:"Arial"})]}),
+          new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:100},children:[new TextRun({text:"Association PDSR, 28 rue rouget de Lisle 93160 Noisy le Grand",size:16,font:"Arial"})]}),
+          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"associationpdsr@gmail.com / t\u00e9l : 06 24 75 34 31 - 05 17 22 59 33",size:16,font:"Arial"})]})
+        ]})},
+        children:[
+          new Paragraph({spacing:{after:200},children:[new TextRun({text:"A l\u2019attention de Mme Eynac C\u00e9line, Mr Bossu Sylvain et Mme Souchon Sylvia",italics:true,size:22})]}),
+          new Paragraph({spacing:{before:300,after:200},children:[new TextRun({text:"Cette semaine sur le groupe :",bold:true,size:24,underline:{}})]}),
+          ...groupText.split("\n").map(line=>new Paragraph({spacing:{after:100},children:[new TextRun({text:line,size:22})]})),
+          new Paragraph({spacing:{before:400,after:200},children:[new TextRun({text:"La semaine de "+jeune.nom+" "+jeune.prenom+" :",bold:true,size:24,underline:{}})]}),
+          ...(persoTexts[jeune.id]||"").split("\n").map(line=>new Paragraph({spacing:{after:100},children:[new TextRun({text:line,size:22})]})),
+        ]
+      }]
+    });
+    const blob=await Packer.toBlob(doc);
+    return{blob,fileName};
+  };
+
+  const handleDownload=async(jeune)=>{
+    const{blob,fileName}=await generateDocx(jeune);
+    saveAs(blob,fileName+".docx");
+  };
+
+  const handlePrint=async(jeune)=>{
+    setSending(true);setSent(false);
+    try{
+      const{blob,fileName}=await generateDocx(jeune);
+      saveAs(blob,fileName+".docx");
+      setSent(true);
+      alert("Fichier "+fileName+".docx t\u00e9l\u00e9charg\u00e9. Pour envoyer par email \u00e0 lmarcille1962@gmail.com et jeanpierregardenatpdsr@gmail.com, joignez ce fichier.");
+    }catch(e){alert("Erreur: "+e.message);}
+    setSending(false);
+  };
+
+  const handlePrintAll=async()=>{
+    setSending(true);
+    for(const j of siteJeunes){
+      try{
+        const{blob,fileName}=await generateDocx(j);
+        saveAs(blob,fileName+".docx");
+      }catch(e){console.error(e);}
+    }
+    setSending(false);
+    alert(siteJeunes.length+" rapports g\u00e9n\u00e9r\u00e9s pour "+site+". Envoyez-les par email \u00e0 lmarcille1962@gmail.com et jeanpierregardenatpdsr@gmail.com.");
+  };
+
+  return(<div style={{padding:"1rem"}}>
+    <h2 style={{fontSize:"1.3rem",fontWeight:700,marginBottom:"1rem",color:C.gold}}>Rapports Hebdomadaires</h2>
+    <div style={{display:"flex",gap:"1rem",marginBottom:"1rem",flexWrap:"wrap"}}>
+      <div><label style={{fontWeight:600}}>Site : </label><select value={site} onChange={e=>{setSite(e.target.value);setSelJeune("")}} style={{padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}}><option>Djilass</option><option>Fatick</option></select></div>
+      <div><label style={{fontWeight:600}}>Semaine : </label><input type="text" value={weekNum} onChange={e=>setWeekNum(e.target.value.replace(/[^0-9]/g,"").substring(0,2))} style={{width:60,padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}} placeholder="01"/></div>
+    </div>
+
+    <div style={{background:"#f9f9f9",border:"1px solid #ddd",borderRadius:8,padding:"1rem",marginBottom:"1rem"}}>
+      <h3 style={{fontWeight:600,marginBottom:"0.5rem",color:C.goldDark}}>Partie Groupe ({site})</h3>
+      <p style={{fontSize:"0.85rem",color:"#666",marginBottom:"0.5rem"}}>Ce texte sera identique pour tous les jeunes de {site}</p>
+      <textarea value={groupText} onChange={e=>setGroupText(e.target.value)} onBlur={saveHebdoData} rows={6} style={{width:"100%",padding:"0.5rem",borderRadius:6,border:"1px solid #ccc",fontFamily:"Arial",fontSize:"0.9rem"}} placeholder="Cette semaine, le groupe a..."/>
+    </div>
+
+    <h3 style={{fontWeight:600,marginBottom:"0.5rem",color:C.goldDark}}>Parties individuelles</h3>
+    {siteJeunes.map(j=><div key={j.id} style={{background:selJeune===String(j.id)?"#fff8e1":"#fff",border:"1px solid "+(selJeune===String(j.id)?C.gold:"#ddd"),borderRadius:8,padding:"0.8rem",marginBottom:"0.5rem",cursor:"pointer"}} onClick={()=>setSelJeune(String(j.id))}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontWeight:600}}>{j.prenom} {j.nom} <span style={{fontSize:"0.8rem",color:"#888"}}>({getFileName(j)})</span></span>
+        <div style={{display:"flex",gap:"0.5rem"}}>
+          <button onClick={e=>{e.stopPropagation();handleDownload(j)}} style={{background:C.gold,color:"#fff",border:"none",borderRadius:6,padding:"0.3rem 0.8rem",cursor:"pointer",fontSize:"0.8rem"}} title="T\u00e9l\u00e9charger Word"><Download size={14}/> Word</button>
+          <button onClick={e=>{e.stopPropagation();handlePrint(j)}} style={{background:C.orange,color:"#fff",border:"none",borderRadius:6,padding:"0.3rem 0.8rem",cursor:"pointer",fontSize:"0.8rem"}} title="Imprimer et envoyer"><Printer size={14}/> Imprimer</button>
+        </div>
+      </div>
+      {selJeune===String(j.id)&&<div style={{marginTop:"0.5rem"}}>
+        <textarea value={persoTexts[j.id]||""} onChange={e=>setPersoTexts(p=>({...p,[j.id]:e.target.value}))} onBlur={saveHebdoData} rows={5} style={{width:"100%",padding:"0.5rem",borderRadius:6,border:"1px solid #ccc",fontFamily:"Arial",fontSize:"0.9rem"}} placeholder={"La semaine de "+j.prenom+"..."}/>
+        {preview&&<div style={{marginTop:"0.5rem",background:"#fff",border:"1px solid #ddd",borderRadius:6,padding:"1rem"}}>
+          <div style={{textAlign:"center",fontWeight:700,fontSize:"1.1rem",borderBottom:"2px solid "+C.gold,paddingBottom:"0.5rem",marginBottom:"1rem"}}>
+            <div>Association PDSR</div><div>Rapport Hebdomadaire</div><div>{j.prenom} {j.nom}</div><div>Semaine S{weekNum} - Groupe de {site.toUpperCase()}</div>
           </div>
-          <div style={{textAlign:"right"}}><div style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>Semaine du</div><div style={{color:C.white,fontWeight:700,fontSize:12}}>{fmt(WEEKDATES[0])} – {fmt(WEEKDATES[6])}</div></div>
+          <p style={{fontStyle:"italic",marginBottom:"1rem"}}>A l\u2019attention de Mme Eynac C\u00e9line, Mr Bossu Sylvain et Mme Souchon Sylvia</p>
+          <h4 style={{fontWeight:700,textDecoration:"underline",marginBottom:"0.5rem"}}>Cette semaine sur le groupe :</h4>
+          <p style={{whiteSpace:"pre-wrap",marginBottom:"1rem"}}>{groupText||"(non renseign\u00e9)"}</p>
+          <h4 style={{fontWeight:700,textDecoration:"underline",marginBottom:"0.5rem"}}>La semaine de {j.nom} {j.prenom} :</h4>
+          <p style={{whiteSpace:"pre-wrap",marginBottom:"1rem"}}>{persoTexts[j.id]||"(non renseign\u00e9)"}</p>
+          <div style={{borderTop:"1px solid #ddd",paddingTop:"0.5rem",textAlign:"center",fontSize:"0.85rem",color:"#666"}}>
+            <div style={{fontWeight:600}}>{[refA(j.id),refB(j.id)].filter(Boolean).join(" \u2013 ")}</div>
+            <div style={{fontStyle:"italic"}}>\u00c9ducateurs sp\u00e9cialis\u00e9s</div>
+            <div>Association PDSR - associationpdsr@gmail.com</div>
+          </div>
+        </div>}
+        <div style={{display:"flex",gap:"0.5rem",marginTop:"0.5rem"}}>
+          <button onClick={()=>setPreview(!preview)} style={{background:preview?"#999":C.goldDark,color:"#fff",border:"none",borderRadius:6,padding:"0.3rem 0.8rem",cursor:"pointer",fontSize:"0.85rem"}}>{preview?"Fermer aper\u00e7u":"Pr\u00e9visualiser"}</button>
         </div>
-      </div>
-      <div style={{...S.card,marginBottom:14}}>
-        <h3 style={{fontSize:13,fontWeight:800,color:C.dark,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}><Calendar size={15} color={C.gold}/>Bilan des présences</h3>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:9,marginBottom:12}}>{[{l:"Jours",v:wp.length,c:C.dark},{l:"Présent",v:prs,c:"#2E7D32"},{l:"Absent",v:abs,c:"#C62828"},{l:"Retard",v:ret,c:"#E65100"}].map(s=><div key={s.l} style={{textAlign:"center",padding:"9px",borderRadius:9,background:C.sable}}><div style={{fontSize:22,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:10,color:C.light,fontWeight:600}}>{s.l}</div></div>)}</div>
-        <div style={{display:"flex",gap:4}}>{WEEKDATES.map((date,i)=>{const p=wp.find(p2=>p2.date===date);const st=p?.statut||"—";const sc2=SC[st]||{bg:C.sable,text:C.light,icon:"—"};return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><div style={{fontSize:9,color:C.light,fontWeight:700}}>{WD[i]}</div><div style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,display:"flex",alignItems:"center",justifyContent:"center",color:sc2.text,fontWeight:800,fontSize:12}}>{sc2.icon}</div></div>);})}
-        </div>
-      </div>
-      <div style={{...S.card,marginBottom:14}}><h3 style={{fontSize:13,fontWeight:800,color:C.dark,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}><FileText size={15} color={C.gold}/>Observations</h3>{wr.length===0?<div style={{color:C.light,fontSize:12,fontStyle:"italic"}}>Aucune observation cette semaine.</div>:wr.map(r=><div key={r.id} style={{padding:"11px",borderRadius:9,background:C.sable,marginBottom:9}}><div style={{fontWeight:700,fontSize:11,color:C.gold,marginBottom:5}}>{WD[WEEKDATES.indexOf(r.date)]} {fmt(r.date)}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.5}}>{r.observation}</p></div>)}</div>
-      <div style={{...S.card,marginBottom:18}}><h3 style={{fontSize:13,fontWeight:800,color:C.dark,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}><AlertTriangle size={15} color={C.orange}/>Événements</h3>{we.length===0?<div style={{color:"#2E7D32",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Check size={13}/>Aucun événement cette semaine.</div>:we.map(e=>{const gc=GC[e.gravite];return(<div key={e.id} style={{padding:"11px",borderRadius:9,background:gc.bg,marginBottom:9,borderLeft:`4px solid ${gc.dot}`}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontWeight:700,fontSize:13,color:gc.text}}>{e.titre}</span><span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{e.gravite}</span></div><p style={{margin:0,fontSize:12,color:C.mid}}>{e.description}</p></div>);})}
-      </div>
-      <div style={{...S.card,background:C.sable,padding:"18px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.light}}>
-          <div><div style={{fontWeight:700,color:C.dark,marginBottom:3}}>Éducateur référent</div><div style={{marginTop:36,borderTop:`1px solid ${C.border}`,paddingTop:7}}>Signature</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:C.dark,marginBottom:3}}>Chef de service</div><div style={{marginTop:36,borderTop:`1px solid ${C.border}`,paddingTop:7}}>Signature</div></div>
-        </div>
-        <div style={{marginTop:14,padding:"9px",background:C.white,borderRadius:7,fontSize:10,color:C.light,textAlign:"center"}}>Document généré automatiquement · Association PDSR · Séjours de remobilisation Sénégal</div>
-      </div>
-    </>}
+      </div>}
+    </div>)}
+
+    <div style={{display:"flex",gap:"1rem",marginTop:"1rem",borderTop:"1px solid #ddd",paddingTop:"1rem"}}>
+      <button onClick={handlePrintAll} disabled={sending} style={{background:C.orange,color:"#fff",border:"none",borderRadius:8,padding:"0.6rem 1.5rem",cursor:"pointer",fontWeight:600,opacity:sending?0.6:1}}><Printer size={16}/> {sending?"G\u00e9n\u00e9ration...":"Imprimer tous les rapports ("+site+")"}</button>
+    </div>
+    {sent&&<p style={{color:"green",marginTop:"0.5rem"}}>Rapports g\u00e9n\u00e9r\u00e9s avec succ\u00e8s !</p>}
   </div>);
 }
-
 
 function Planning({djiPlan,fatPlan,site}){const[selSite,setSelSite]=useState(site==="Tous"?"Fatick":site);const plan=selSite==="Fatick"?fatPlan:djiPlan;const[month,setMonth]=useState(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");});const WD=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];const y=parseInt(month.split("-")[0]),m=parseInt(month.split("-")[1]);const first=new Date(y,m-1,1),last=new Date(y,m,0);const days=[];for(let d=1;d<=last.getDate();d++){const dt=new Date(y,m-1,d);const key=dt.toISOString().slice(0,10);const info=plan[key]||{};days.push({d,wd:dt.getDay(),key,a:info.a||false,b:info.b||false,n:info.n||"",v:info.v||0});}const prev=()=>{let nm=m-1,ny=y;if(nm<1){nm=12;ny--;}setMonth(ny+"-"+String(nm).padStart(2,"0"));};const next=()=>{let nm=m+1,ny=y;if(nm>12){nm=1;ny++;}setMonth(ny+"-"+String(nm).padStart(2,"0"));};const MN=["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];return(<div>{site==="Tous"&&<div style={{display:"flex",gap:8,marginBottom:12}}><button onClick={()=>setSelSite("Fatick")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Fatick"?C.gold:"#eee",color:selSite==="Fatick"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Fatick</button><button onClick={()=>setSelSite("Djilass")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Djilass"?C.gold:"#eee",color:selSite==="Djilass"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Djilass</button></div>}<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}><button onClick={prev} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>◀</button><h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:0}}>{MN[m]} {y} — Planning {site||"Djilass"}</h2><button onClick={next} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>▶</button></div><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>{WD.map(w=><div key={w} style={{textAlign:"center",fontWeight:700,fontSize:12,color:C.dark,padding:4}}>{w}</div>)}{Array.from({length:first.getDay()}).map((_,i)=><div key={"e"+i}/>)}{days.map(day=>{const bg=day.v?C.orangeLight:day.a&&day.b?"#e0e7ff":day.a?C.sableLight:day.b?"#dbeafe":"#f3f4f6";const today=day.key===new Date().toISOString().slice(0,10);return(<div key={day.key} style={{background:bg,borderRadius:8,padding:6,minHeight:54,border:today?"2px solid "+C.primary:"1px solid #e5e7eb",position:"relative"}}><div style={{fontWeight:700,fontSize:13,color:C.dark}}>{day.d}</div>{day.a&&<div style={{fontSize:10,color:C.primary,fontWeight:600}}>Éq. A</div>}{day.b&&<div style={{fontSize:10,color:"#2563eb",fontWeight:600}}>Éq. B</div>}{day.v?<div style={{fontSize:9,color:C.orange,fontWeight:700}}>VACANCES</div>:null}{day.n&&<div style={{fontSize:9,color:"#6b7280",marginTop:2}}>{day.n}</div>}</div>);})}</div></div>);}
 
@@ -407,7 +522,7 @@ useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip
         {page==="presences"&&<Presences user={user} presences={presences} onCP={changeP}/>}
         {page==="evenements"&&<Evenements user={user} evenements={evenements} onAdd={addE} onDelete={delE}/>}
         {page==="admin"&&(user.role==="directeur"||user.role==="chef_service")&&<Admin users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes}/>}
-        {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements}/>}
+        {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes}/>}
       {page==="planning"&&<Planning djiPlan={DJI_PLAN} fatPlan={FAT_PLAN} site={user.site}/>}
       </main>
     </div>
