@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak, HeadingLevel } from "docx";
-import { saveAs } from "file-saver";
 import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download } from "lucide-react";
 
 
@@ -319,7 +318,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
   const handleDownload=async(jeune)=>{
     try{
       const{blob,fileName}=await generateDocx(jeune);
-      saveAs(blob,fileName+".docx");
+      const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=fileName+".docx";document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5000);
     }catch(err){console.error("Word error:",err);alert("Erreur Word: "+err.message);}
   };
 
@@ -327,7 +326,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     setSending(true);setSent(false);
     try{
       const{blob,fileName}=await generateDocx(jeune);
-      saveAs(blob,fileName+".docx");
+      var dlUrl=URL.createObjectURL(blob);var dlA=document.createElement("a");dlA.href=dlUrl;dlA.download=fileName+".docx";document.body.appendChild(dlA);dlA.click();document.body.removeChild(dlA);setTimeout(function(){URL.revokeObjectURL(dlUrl)},5000);
       setSent(true);
       window.open("mailto:lmarcille1962@gmail.com,jeanpierregardenatpdsr@gmail.com?subject="+encodeURIComponent(fileName)+"&body="+encodeURIComponent("Bonjour,\n\nVeuillez trouver ci-joint le rapport hebdomadaire "+fileName+".\n\nCordialement,\nAssociation PDSR"),"_blank");
     }catch(e){alert("Erreur: "+e.message);}
@@ -339,7 +338,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     for(const j of siteJeunes){
       try{
         const{blob,fileName}=await generateDocx(j);
-        saveAs(blob,fileName+".docx");
+        var dlUrl2=URL.createObjectURL(blob);var dlA2=document.createElement("a");dlA2.href=dlUrl2;dlA2.download=fileName+".docx";document.body.appendChild(dlA2);dlA2.click();document.body.removeChild(dlA2);setTimeout(function(){URL.revokeObjectURL(dlUrl2)},5000);
       }catch(e){console.error(e);}
     }
     setSending(false);
