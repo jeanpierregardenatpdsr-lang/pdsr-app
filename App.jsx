@@ -273,7 +273,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     fbSet("hebdo",saved.hebdo);
   };
 
-  const generateDocx=async(jeune)=>{const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
+  const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
     const rb=refB(jeune.id);
@@ -312,13 +312,15 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
         ]
       }]
     });
-    const blob=await Packer.toBlob(doc);
+    console.log("Doc created, calling Packer.toBlob...");const blob=await Packer.toBlob(doc);console.log("Blob created:",blob);
     return{blob,fileName};
   };
 
   const handleDownload=async(jeune)=>{
-    const{blob,fileName}=await generateDocx(jeune);
-    saveAs(blob,fileName+".docx");
+    try{
+      const{blob,fileName}=await generateDocx(jeune);
+      saveAs(blob,fileName+".docx");
+    }catch(err){console.error("Word error:",err);alert("Erreur Word: "+err.message);}
   };
 
   const handlePrint=async(jeune)=>{
@@ -500,7 +502,7 @@ const fbSkip=useRef(false);
 useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
 useEffect(()=>{if(!user)return;(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));if(d.jeunes){const jArr=Array.isArray(d.jeunes)?d.jeunes:Object.values(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}}})();},[user]);
 
-  if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=JEUNES.filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
+  if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=(appJeunes||JEUNES).filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
   const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation}]);
   const delR=(id)=>setRapports(p=>p.filter(r=>r.id!==id));
   const delE=(id)=>setEvenements(p=>p.filter(e=>e.id!==id));
