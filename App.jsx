@@ -35,7 +35,7 @@ const Tag=({bg,text,children})=><span style={{background:bg,color:text,borderRad
 
 function Login({onLogin}){
   const[email,setEmail]=useState(""),[ pw,setPw]=useState(""),[ err,setErr]=useState("");
-  const handle=()=>{const u=(loadLS()?.users||USERS).find(u=>(u.email===email||u.login===email)&&u.password===pw);u?(setErr(""),onLogin(u)):setErr("Identifiants incorrects");};
+  const handle=()=>{const u=(loadLS()?.users||USERS).find(u=>(u.email===email||u.login===email)&&u.password===pw);if(u&&u.disabled){setErr("Compte désactivé. Contactez votre chef de service.")}else{u?(setErr(""),onLogin(u)):setErr("Identifiants incorrects")}};
   return(<div style={{minHeight:"100vh",background:`linear-gradient(160deg,${C.dark} 0%,#3D2800 55%,${C.goldDark} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
       <div style={{textAlign:"center",marginBottom:36}}>
@@ -272,7 +272,8 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     fbSet("hebdo",saved.hebdo);
   };
 
-  const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
+  const compileWeekRapports=()=>{const year=new Date().getFullYear();const compiled={};siteJeunes.forEach(j=>{const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id)return false;if(!r.date)return false;const d=new Date(r.date);const jan1=new Date(d.getFullYear(),0,1);const wk=String(Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7)).padStart(2,"0");return wk===weekNum&&String(d.getFullYear())===String(year)});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n")}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes avec des rapports cette semaine.")};
+const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
     const rb=refB(jeune.id);
@@ -350,6 +351,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     <div style={{display:"flex",gap:"1rem",marginBottom:"1rem",flexWrap:"wrap"}}>
       <div><label style={{fontWeight:600}}>Site : </label><select value={site} onChange={e=>{setSite(e.target.value);setSelJeune("")}} style={{padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}}><option>Djilass</option><option>Fatick</option></select></div>
       <div><label style={{fontWeight:600}}>Semaine : </label><input type="text" value={weekNum} onChange={e=>setWeekNum(e.target.value.replace(/[^0-9]/g,"").substring(0,2))} style={{width:60,padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}} placeholder="01"/></div>
+    <button onClick={compileWeekRapports} style={{background:C.goldDark,color:"#fff",border:"none",borderRadius:6,padding:"0.4rem 1rem",cursor:"pointer",fontWeight:600,fontSize:"0.85rem",display:"flex",alignItems:"center",gap:"0.3rem"}} title="Compiler automatiquement les rapports journaliers de cette semaine"><FileText size={14}/> Compiler la semaine</button>
     </div>
 
     <div style={{background:"#f9f9f9",border:"1px solid #ddd",borderRadius:8,padding:"1rem",marginBottom:"1rem"}}>
@@ -412,6 +414,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
   const genLogin=(nom,prenom)=>(nom+prenom).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z]/g,"");
   const addEduc=()=>{if(!newPrenom.trim()||!newNom.trim())return;const login=genLogin(newNom,newPrenom);const id=Math.max(...users.map(u=>u.id))+1;onUpdateUsers([...users,{id,login,password:"pdsr2026",role:"educateur",name:newPrenom,site:newSite,initials:newPrenom.substring(0,2).toUpperCase(),assignedIds:[]}]);setNewPrenom("");setNewNom("");};
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
+  const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
   const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
   const assignJeune=(jeuneId,educId)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,educateurId:educId?+educId:null}:j));const educ=users.find(u=>u.id===+educId);if(educ&&!educ.assignedIds.includes(jeuneId)){onUpdateUsers(users.map(u=>u.id===+educId?{...u,assignedIds:[...u.assignedIds,jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educId){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
@@ -429,10 +432,10 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
         {newPrenom&&newNom&&<div style={{fontSize:11,color:C.mid,marginBottom:8}}>Identifiant généré : <strong>{genLogin(newNom,newPrenom)}</strong> / Mot de passe : <strong>pdsr2026</strong></div>}
         <button onClick={addEduc} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
       </div>
-      {educs.map(u=><div key={u.id} style={{...S.card,marginBottom:8}}>
+      {educs.map(u=><div key={u.id} style={{...S.card,marginBottom:8,opacity:u.disabled?0.6:1,borderLeft:u.disabled?"3px solid #C62828":"3px solid transparent"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{u.site} · {u.login} · {jeunes.filter(j=>j.referentA===u.name||j.referentB===u.name).length} jeunes</div></div>
-          <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+          <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"✅ Activer":"⛔ Désactiver"}</button> <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
       </div>)}
     </div>}
@@ -495,14 +498,14 @@ export default function App(){
   const[appUsers,setAppUsers]=useState(USERS);
   const[appJeunes,setAppJeunes]=useState(JEUNES);
   
-  useEffect(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes);},[rapports,presences,evenements,appUsers,appJeunes,user]);
+  useEffect(()=>{if(window._lsTimer)clearTimeout(window._lsTimer);window._lsTimer=setTimeout(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes);},500);},[rapports,presences,evenements,appUsers,appJeunes,user]);
 // Firebase sync
 const fbSkip=useRef(false);
-useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},[rapports,presences,evenements,appUsers,appJeunes]);
+useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;if(window._fbTimer)clearTimeout(window._fbTimer);window._fbTimer=setTimeout(()=>{fbSet("data",{rapports,presences,evenements,jeunes:appJeunes,users:appUsers});},2000);},[rapports,presences,evenements,appUsers,appJeunes]);
 useEffect(()=>{(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if(d.rapports)setRapports(Array.isArray(d.rapports)?d.rapports:Object.values(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(Array.isArray(d.evenements)?d.evenements:Object.values(d.evenements));if(d.jeunes){const jArr=Array.isArray(d.jeunes)?d.jeunes:Object.values(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}}})();},[]);
 
   if(!user)return<Login onLogin={u=>{if(u.role==="educateur"){u.assignedIds=(appJeunes||JEUNES).filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setUser(u);setPage("dashboard");}}/>;
-  const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation}]);
+  const addR=({jeuneId,date,observation})=>setRapports(p=>[...p.filter(r=>!(r.jeuneId===jeuneId&&r.date===date)),{id:Date.now(),jeuneId,date,observation,createdAt:Date.now()}]);
   const delR=(id)=>setRapports(p=>p.filter(r=>r.id!==id));
   const delE=(id)=>setEvenements(p=>p.filter(e=>e.id!==id));
   const addE=ev=>setEvenements(p=>[...p,{id:Date.now(),...ev}]);
