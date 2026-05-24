@@ -272,7 +272,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
     fbSet("hebdo",saved.hebdo);
   };
 
-  const compileWeekRapports=()=>{const year=new Date().getFullYear();const compiled={};siteJeunes.forEach(j=>{const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id)return false;if(!r.date)return false;const d=new Date(r.date);const jan1=new Date(d.getFullYear(),0,1);const wk=String(Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7)).padStart(2,"0");return wk===weekNum&&String(d.getFullYear())===String(year)});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n")}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes avec des rapports cette semaine.")};
+  const compileWeekRapports=()=>{const getISOWeek=(dateStr)=>{const d=new Date(dateStr);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w1=new Date(d.getFullYear(),0,4);return String(1+Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,"0")};const compiled={};let total=0;siteJeunes.forEach(j=>{const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id||!r.date)return false;return getISOWeek(r.date)===weekNum});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n");total+=jRapports.length}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes, "+total+" rapports trouvés pour la semaine "+weekNum)};
 const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
@@ -354,11 +354,11 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
     <button onClick={compileWeekRapports} style={{background:C.goldDark,color:"#fff",border:"none",borderRadius:6,padding:"0.4rem 1rem",cursor:"pointer",fontWeight:600,fontSize:"0.85rem",display:"flex",alignItems:"center",gap:"0.3rem"}} title="Compiler automatiquement les rapports journaliers de cette semaine"><FileText size={14}/> Compiler la semaine</button>
     </div>
 
-    <div style={{background:"#f9f9f9",border:"1px solid #ddd",borderRadius:8,padding:"1rem",marginBottom:"1rem"}}>
+    {user.role!=="educateur"&&<div style={{background:"#f9f9f9",border:"1px solid #ddd",borderRadius:8,padding:"1rem",marginBottom:"1rem"}}>
       <h3 style={{fontWeight:600,marginBottom:"0.5rem",color:C.goldDark}}>Partie Groupe ({site})</h3>
       <p style={{fontSize:"0.85rem",color:"#666",marginBottom:"0.5rem"}}>Ce texte sera identique pour tous les jeunes de {site}</p>
       <textarea value={groupText} onChange={e=>setGroupText(e.target.value)} onBlur={saveHebdoData} rows={6} style={{width:"100%",padding:"0.5rem",borderRadius:6,border:"1px solid #ccc",fontFamily:"Arial",fontSize:"0.9rem"}} placeholder="Cette semaine, le groupe a..."/>
-    </div>
+    </div>}
 
     <h3 style={{fontWeight:600,marginBottom:"0.5rem",color:C.goldDark}}>Parties individuelles</h3>
     {siteJeunes.map(j=><div key={j.id} style={{background:selJeune===String(j.id)?"#fff8e1":"#fff",border:"1px solid "+(selJeune===String(j.id)?C.gold:"#ddd"),borderRadius:8,padding:"0.8rem",marginBottom:"0.5rem",cursor:"pointer"}} onClick={()=>setSelJeune(String(j.id))}>
@@ -416,7 +416,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
   const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
-  const assignJeune=(jeuneId,educId)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,educateurId:educId?+educId:null}:j));const educ=users.find(u=>u.id===+educId);if(educ&&!educ.assignedIds.includes(jeuneId)){onUpdateUsers(users.map(u=>u.id===+educId?{...u,assignedIds:[...u.assignedIds,jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educId){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
+  const assignJeune=(jeuneId,educName)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,referentA:educName||""}:j));const educ=users.find(u=>u.name===educName);if(educ&&!educ.assignedIds?.includes(jeuneId)){onUpdateUsers(users.map(u=>u.name===educName?{...u,assignedIds:[...(u.assignedIds||[]),jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educName){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
@@ -449,16 +449,16 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes}){
         <div style={{marginBottom:10}}><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
         <button onClick={addJeune} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
       </div>
-      {jeunes.map(j=>{const ed=users.find(u=>u.id===j.educateurId);return(<div key={j.id} style={{...S.card,marginBottom:8}}>
+      {jeunes.map(j=>{const ed=users.find(u=>u.name===j.referentA);return(<div key={j.id} style={{...S.card,marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{j.prenom} {j.nom}</div><div style={{fontSize:11,color:C.light}}>{j.site} · Éducateur: {ed?.name||"Non assigné"}</div></div>
           <button onClick={()=>removeJeune(j.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <label style={{fontSize:11,fontWeight:700,color:C.mid}}>Éducateur:</label>
-          <select style={{...S.inp,flex:1,padding:"4px 8px",fontSize:11}} value={j.educateurId||""} onChange={e=>assignJeune(j.id,e.target.value)}>
+          <select style={{...S.inp,flex:1,padding:"4px 8px",fontSize:11}} value={j.referentA||""} onChange={e=>assignJeune(j.id,e.target.value)}>
             <option value="">-- Aucun --</option>
-            {educs.filter(u=>u.site===j.site).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            {educs.filter(u=>u.site===j.site).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
           </select>
         </div>
       </div>);})}
