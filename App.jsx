@@ -100,9 +100,9 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
   return(<div style={{cursor:"pointer",padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <p style={{color:C.light,fontSize:12,margin:"0 0 3px"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
     <h1 style={{fontSize:22,fontWeight:900,color:C.dark,margin:"0 0 20px"}}>Bonjour, {user.name.split(" ")[0]} 👋</h1>
-    <div onClick={()=>setPage("rapports")} onClick={()=>setPage("jeunes")} style={{cursor:"pointer",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-      {[{l:"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight},{l:"Présents aujourd'hui",v:`${presents}/${vj.length}`,i:"✓",c:"#2E7D32",bg:"#E8F5E9"},{l:"Rapports ce jour",v:(rapports||[]).filter(r=>r.date===today).length,i:"📝",c:C.orange,bg:C.orangeLight},{l:"Incidents graves",v:graves,i:"⚠",c:"#C62828",bg:"#FFEBEE"}].map((s,i)=>(
-        <div key={i} style={{...S.card,display:"flex",alignItems:"center",gap:13,padding:"15px",marginBottom:0}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+      {[{l:"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:"jeunes"},{l:"Présents aujourd'hui",v:`${presents}/${vj.length}`,i:"✔️",c:"#2E7D32",bg:"#E8F5E9",nav:"presences"},{l:"Rapports ce jour",v:(rapports||[]).filter(r=>r.date===today).length,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:graves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
+        <div key={i} onClick={()=>s.nav&&setPage(s.nav)} style={{...S.card,display:"flex",alignItems:"center",gap:13,padding:"15px",marginBottom:0,cursor:"pointer"}}>
           <div style={{width:42,height:42,borderRadius:11,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>{s.i}</div>
           <div><div style={{fontSize:24,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div><div style={{fontSize:10,color:C.light,fontWeight:600,marginTop:2}}>{s.l}</div></div>
         </div>
@@ -110,12 +110,12 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
     </div>
     {user.role!=="educateur"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
       {[{l:"Site Fatick",n:JEUNES.filter(j=>j.site==="Fatick").length,e:"🏖️",c:C.gold},{l:"Site Djilass",n:JEUNES.filter(j=>j.site==="Djilass").length,e:"🌿",c:C.orange}].map((s,i)=>(
-        <div key={i} style={{...S.card,borderTop:`4px solid ${s.c}`,padding:"15px",marginBottom:0}}>
+        <div key={i} onClick={()=>setPage("jeunes")} style={{...S.card,borderTop:`4px solid ${s.c}`,padding:"15px",marginBottom:0,cursor:"pointer"}}>
           <div style={{fontSize:22}}>{s.e}</div><div style={{fontWeight:900,fontSize:18,color:C.dark,marginTop:3}}>{s.n} jeunes</div><div style={{fontSize:11,color:C.light,fontWeight:600}}>{s.l}</div>
         </div>
       ))}
     </
-{agenda&&agenda.length>0&&<div style={{...S.card,marginTop:16}}><div style={{fontWeight:700,fontSize:15,color:C.dark,marginBottom:10}}>Prochains RDV</div>{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date)||((a.heure||"").localeCompare(b.heure||""))).slice(0,5).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid #f0f0f0"}}><div style={{minWidth:60,fontSize:12,fontWeight:700,color:C.primary}}>{a.date.slice(5)}</div><div style={{minWidth:40,fontSize:11,color:C.mid}}>{a.heure||""}</div><div style={{fontSize:12,color:C.dark}}>{a.jeuneNom||""} - {a.type||""}</div></div>)}{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).length===0&&<div style={{fontSize:12,color:C.light}}>Aucun RDV à venir</div>}</div>}
+{agenda&&agenda.length>0&&<div onClick={()=>setPage("agenda")} style={{...S.card,marginTop:16,cursor:"pointer"}}><div style={{fontWeight:700,fontSize:15,color:C.dark,marginBottom:10}}>Prochains RDV</div>{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date)||((a.heure||"").localeCompare(b.heure||""))).slice(0,5).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid #f0f0f0"}}><div style={{minWidth:60,fontSize:12,fontWeight:700,color:C.primary}}>{a.date.slice(5)}</div><div style={{minWidth:40,fontSize:11,color:C.mid}}>{a.heure||""}</div><div style={{fontSize:12,color:C.dark}}>{a.jeuneNom||""} - {a.type||""}</div></div>)}{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).length===0&&<div style={{fontSize:12,color:C.light}}>Aucun RDV à venir</div>}</div>}
 div>}
     
   </div>);
