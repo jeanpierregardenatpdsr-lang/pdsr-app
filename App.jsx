@@ -114,9 +114,8 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
           <div style={{fontSize:22}}>{s.e}</div><div style={{fontWeight:900,fontSize:18,color:C.dark,marginTop:3}}>{s.n} jeunes</div><div style={{fontSize:11,color:C.light,fontWeight:600}}>{s.l}</div>
         </div>
       ))}
-    </div>
+    </div>}
     {agenda&&agenda.length>0&&<div onClick={()=>setPage("agenda")} style={{...S.card,marginTop:16,cursor:"pointer"}}><div style={{fontWeight:700,fontSize:15,color:C.dark,marginBottom:10}}>Prochains RDV</div>{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date.localeCompare(b.date)||((a.heure||"").localeCompare(b.heure||""))).slice(0,5).map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid #f0f0f0"}}><div style={{minWidth:60,fontSize:12,fontWeight:700,color:C.primary}}>{a.date.slice(5)}</div><div style={{minWidth:40,fontSize:11,color:C.mid}}>{a.heure||""}</div><div style={{fontSize:12,color:C.dark}}>{a.jeuneNom||""} - {a.type||""}</div></div>)}{agenda.filter(a=>a.date>=new Date().toISOString().slice(0,10)).length===0&&<div style={{fontSize:12,color:C.light}}>Aucun RDV à venir</div>}</div>}
-</div>}
     
   </div>);
 }
