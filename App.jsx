@@ -473,6 +473,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
           <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700,color:C.gold}}>{u.email||u.login}</div><div style={{fontSize:11,color:C.mid}}>mdp: {u.password}</div></div>
         </div>
       </div>)}
+    </div>}
 
     {tab==="logs"&&<div>
       <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Registre des connexions</div>
