@@ -55,7 +55,7 @@ function Login({onLogin}){
   </div>);
 }
 
-const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar}];
+const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar}];
 
 function Sidebar({page,onNav,user,onLogout,open,onClose}){
   return(<>
@@ -77,7 +77,7 @@ function Sidebar({page,onNav,user,onLogout,open,onClose}){
         </div>
       </div>
       <nav style={{flex:1,padding:"10px 10px"}}>
-        {NAV.filter(n=>n.id!=="admin"||(user.role==="directeur"||user.role==="chef_service")).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:2,background:active?`${C.gold}22`:"transparent",color:active?C.sable:"rgba(255,255,255,0.6)",textAlign:"left"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
+        {NAV.filter(n=>(n.id!=="admin"&&n.id!=="export")||(user.role==="directeur"||user.role==="chef_service")).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:2,background:active?`${C.gold}22`:"transparent",color:active?C.sable:"rgba(255,255,255,0.6)",textAlign:"left"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
       </nav>
       <div style={{padding:"10px 10px 22px"}}><button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13,background:"rgba(244,67,54,0.12)",color:"#EF5350"}}><LogOut size={17}/>Déconnexion</button></div>
     </aside>
@@ -93,7 +93,7 @@ function Topbar({title,onMenu,onBack}){
 }
 
 function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda}){
-  const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>(user.assignedIds||[]).includes(j.id)):(jeunes||JEUNES);
+  const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>user.site==="Tous"||j.site===user.site):(jeunes||JEUNES);
   const todayP=presences.filter(p=>p.date===today);
   const presents=todayP.filter(p=>p.statut==="Présent").length;
   const graves=(evenements||[]).filter(e=>e.gravite==="Grave").length;
@@ -122,7 +122,7 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
 
 function JeunesList({user,jeunes,presences,onSelect,onNav,onUpdateJeune}){
   const[q,setQ]=useState(""),[ site,setSite]=useState("Tous");
-  const vj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
+  const vj=user.role==="educateur"?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
   const vis=vj.filter(j=>{const m=`${j.prenom} ${j.nom}`.toLowerCase().includes(q.toLowerCase());const s=site==="Tous"||j.site===site;return m&&s;});
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <div style={{display:"flex",gap:8,marginBottom:14}}>
@@ -160,8 +160,8 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
     <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto",paddingBottom:4}}>
       {tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t}</button>)}
     </div>
-    {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",jeune.prenom],["Nom",jeune.nom],["Référent A",jeune.referentA],["Référent B",jeune.referentB],["Site",jeune.site],["Statut",jeune.statut]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
-    {tab==="fiche"&&(user.role==="directeur"||user.role==="chef_service")&&<div style={{...S.card,marginTop:12}}><div style={{fontWeight:700,color:C.dark,fontSize:14,marginBottom:10}}>Dossier du jeune</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent A</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentA||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentA",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent B</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentB||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentB",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{[["emailASE","Email éduc. ASE"],["telASE","Tél. éduc. ASE"],["telParent1","Tél. parent/tuteur 1"],["telParent2","Tél. parent/tuteur 2"],["traitement","Traitement"],["notesDossier","Notes dossier"]].map(([field,label])=><div key={field} style={{gridColumn:field==="traitement"||field==="notesDossier"?"1/-1":"auto"}}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{label}</div>{field==="notesDossier"||field==="traitement"?<textarea style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",minHeight:50,resize:"vertical"}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>:<input style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>}</div>)}</div><div style={{textAlign:"center",marginTop:16}}><button onClick={()=>{setSaved(true);setTimeout(()=>setSaved(false),2000);}} style={{padding:"10px 32px",background:saved?"#27ae60":"#2c6fbb",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",transition:"all 0.3s"}}>{saved?"✓ Enregistré !":"Enregistrer les modifications"}</button></div></div>}
+    {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",jeune.prenom],["Nom",jeune.nom],["Référent A",jeune.referentA],["Référent B",jeune.referentB],["Référent C",jeune.referentC||""],["Référent D",jeune.referentD||""],["Site",jeune.site],["Statut",jeune.statut]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
+    {tab==="fiche"&&(user.role==="directeur"||user.role==="chef_service")&&<div style={{...S.card,marginTop:12}}><div style={{fontWeight:700,color:C.dark,fontSize:14,marginBottom:10}}>Dossier du jeune</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent A</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentA||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentA",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent B</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentB||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentB",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent C</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentC||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentC",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div><div><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Référent D</div><select style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune.referentD||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,"referentD",e.target.value)}><option value="">--</option>{USERS.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{[["emailASE","Email éduc. ASE"],["telASE","Tél. éduc. ASE"],["telParent1","Tél. parent/tuteur 1"],["telParent2","Tél. parent/tuteur 2"],["traitement","Traitement"],["notesDossier","Notes dossier"]].map(([field,label])=><div key={field} style={{gridColumn:field==="traitement"||field==="notesDossier"?"1/-1":"auto"}}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{label}</div>{field==="notesDossier"||field==="traitement"?<textarea style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",minHeight:50,resize:"vertical"}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>:<input style={{width:"100%",padding:6,border:"1px solid #ddd",borderRadius:6,fontSize:13}} value={jeune[field]||""} onChange={e=>onUpdateJeune&&onUpdateJeune(jeune.id,field,e.target.value)}/>}</div>)}</div><div style={{textAlign:"center",marginTop:16}}><button onClick={()=>{setSaved(true);setTimeout(()=>setSaved(false),2000);}} style={{padding:"10px 32px",background:saved?"#27ae60":"#2c6fbb",color:"#fff",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",transition:"all 0.3s"}}>{saved?"✓ Enregistré !":"Enregistrer les modifications"}</button></div></div>}
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:11,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}{r.author&&<span style={{fontWeight:400,fontSize:11,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:9,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{sc2.icon}</button></div>);})}
     </div></div>}
@@ -171,18 +171,18 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
 }
 
 function Rapports({user,rapports,onSave,onDelete}){
-  const vj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
+  const vj=user.role==="educateur"?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[date,setDate]=useState(today);
   const[obs,setObs]=useState("");
   const[saved,setSaved]=useState(false);
-  const existing=rapports.find(r=>r.jeuneId===+jid&&r.date===date);
+  const existingCount=rapports.filter(r=>r.jeuneId===+jid&&r.date===date).length;
   const handle=()=>{if(!obs.trim())return;onSave({jeuneId:+jid,date,observation:obs});setSaved(true);setObs("");setTimeout(()=>setSaved(false),2500);};
   return(<div style={{padding:"18px 14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card}}>
       <div style={{marginBottom:14}}><label style={{...S.lbl}}>Jeune</label><select style={{...S.inp}} value={jid} onChange={e=>setJid(e.target.value)}><option value="">-- Sélectionner --</option>{vj.map(j=><option key={j.id} value={j.id}>{j.prenom} {j.nom} — {j.site}</option>)}</select></div>
       <div style={{marginBottom:14}}><label style={{...S.lbl}}>Date</label><input style={{...S.inp}} type="date" value={date} onChange={e=>setDate(e.target.value)} max={today}/></div>
-      {existing&&<div style={{padding:"9px 12px",borderRadius:9,background:C.sable,marginBottom:12,fontSize:12,color:C.mid,borderLeft:`3px solid ${C.gold}`}}>📝 Un rapport existe pour ce jour : «{existing.observation.slice(0,60)}...»</div>}
+      {existingCount>0&&<div style={{padding:"9px 12px",borderRadius:9,background:C.sable,marginBottom:12,fontSize:12,color:C.mid,borderLeft:`3px solid ${C.gold}`}}>📝 {existingCount} rapport(s) déjà rédigé(s) ce jour pour ce jeune. Vous pouvez en ajouter un nouveau.</div>}
       <div style={{marginBottom:14}}><label style={{...S.lbl}}>Observation du jour</label><textarea style={{...S.inp,minHeight:110,resize:"vertical",lineHeight:1.6}} placeholder="Décrivez en une ou deux phrases la journée du jeune..." value={obs} onChange={e=>setObs(e.target.value)}/></div>
       <button onClick={handle} style={{...S.btnP,width:"100%",justifyContent:"center",background:saved?"#4CAF50":undefined}}>{saved?<><Check size={17}/>Enregistré !</>:<><FileText size={17}/>Enregistrer le rapport</>}</button>
     </div>
@@ -192,7 +192,7 @@ function Rapports({user,rapports,onSave,onDelete}){
 }
 
 function Presences({user,presences,onCP}){
-  const vj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
+  const vj=user.role==="educateur"?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
   const[site,setSite]=useState("Tous");
   const vis=site==="Tous"?vj:vj.filter(j=>j.site===site);
   const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};
@@ -211,7 +211,7 @@ function Presences({user,presences,onCP}){
 }
 
 function Evenements({user,evenements,onAdd,onDelete}){
-  const vj=user.role==="educateur"?JEUNES.filter(j=>(user.assignedIds||[]).includes(j.id)):JEUNES;
+  const vj=user.role==="educateur"?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[titre,setTitre]=useState(""),[ desc,setDesc]=useState(""),[ grav,setGrav]=useState("Léger"),[ date2,setDate2]=useState(today),[categ,setCateg]=useState("jeune"),[typeEv,setTypeEv]=useState("incident");
   const[open2,setOpen2]=useState(false),[ saved,setSaved]=useState(false),[ fg,setFg]=useState("Tous");
@@ -241,7 +241,7 @@ function Evenements({user,evenements,onAdd,onDelete}){
 
 function RapportHebdo({user,rapports,presences,evenements,jeunes,onSaveHebdo}){
   const allJeunes=jeunes||JEUNES;
-  const mj=user.role==="educateur"?allJeunes.filter(j=>(user.assignedIds||[]).includes(j.id)):allJeunes;
+  const mj=user.role==="educateur"?allJeunes.filter(j=>user.site==="Tous"||j.site===user.site):allJeunes;
   const[site,setSite]=useState("Djilass");
   const siteJeunes=mj.filter(j=>j.site===site);
   const[selJeune,setSelJeune]=useState("");
@@ -418,7 +418,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const addEduc=()=>{if(!newPrenom.trim()||!newNom.trim())return;const login=genLogin(newNom,newPrenom);const id=Math.max(...users.map(u=>u.id))+1;onUpdateUsers([...users,{id,login,password:"pdsr2026",role:"educateur",name:newPrenom,site:newSite,type:newType,section:newSection,initials:newPrenom.substring(0,2).toUpperCase(),assignedIds:[]}]);setNewPrenom("");setNewNom("");setNewType("jour");setNewSection("mineurs");};
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
-  const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
+  const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
   const assignJeune=(jeuneId,educName)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,referentA:educName||""}:j));const educ=users.find(u=>u.name===educName);if(educ&&!educ.assignedIds?.includes(jeuneId)){onUpdateUsers(users.map(u=>u.name===educName?{...u,assignedIds:[...(u.assignedIds||[]),jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educName){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
@@ -439,7 +439,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
       </div>
       {educs.map(u=><div key={u.id} style={{...S.card,marginBottom:8,opacity:u.disabled?0.6:1,borderLeft:u.disabled?"3px solid #C62828":"3px solid transparent"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{u.site} · {u.login} · {u.type==="nuit"?"Nuit":"Jour"} · {u.section==="majeurs"?"Majeurs":"Mineurs"} · {jeunes.filter(j=>j.referentA===u.name||j.referentB===u.name).length} jeunes</div></div>
+          <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{u.site} · {u.login} · {u.type==="nuit"?"Nuit":"Jour"} · {u.section==="majeurs"?"Majeurs":"Mineurs"} · {jeunes.filter(j=>j.referentA===u.name||j.referentB===u.name||j.referentC===u.name||j.referentD===u.name).length} jeunes</div></div>
           <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"✅ Activer":"⛔ Désactiver"}</button> <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
       </div>)}
@@ -454,22 +454,18 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
         <div style={{marginBottom:10}}><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
         <button onClick={addJeune} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
       </div>
-      {jeunes.map(j=>{const ed=users.find(u=>u.name===j.referentA);return(<div key={j.id} style={{...S.card,marginBottom:8}}>
+      {jeunes.map(j=>{return(<div key={j.id} style={{...S.card,marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{j.prenom} {j.nom}</div><div style={{fontSize:11,color:C.light}}>{j.site} · Éducateur: {ed?.name||"Non assigné"}</div></div>
+          <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{j.prenom} {j.nom}</div><div style={{fontSize:11,color:C.light}}>{j.site} · Réf: {[j.referentA,j.referentB,j.referentC,j.referentD].filter(Boolean).join(", ")||"Non assigné"}</div></div>
           <button onClick={()=>removeJeune(j.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <label style={{fontSize:11,fontWeight:700,color:C.mid}}>Éducateur:</label>
-          <select style={{...S.inp,flex:1,padding:"4px 8px",fontSize:11}} value={j.referentA||""} onChange={e=>assignJeune(j.id,e.target.value)}>
-            <option value="">-- Aucun --</option>
-            {educs.filter(u=>u.site===j.site).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
-          </select>
+          {["referentA","referentB","referentC","referentD"].map((rf,i)=><div key={rf} style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}><span style={{fontSize:10,fontWeight:700,color:C.mid,minWidth:32}}>Réf {String.fromCharCode(65+i)}</span><select style={{...S.inp,flex:1,padding:"3px 6px",fontSize:11}} value={j[rf]||""} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,[rf]:e.target.value}:x))}><option value="">--</option>{educs.filter(u=>u.site===j.site).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>)}
         </div>
       </div>);})}
     </div>}
 
-    {tab==="majeurs"&&<div> <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Gestion des Majeurs</div> {(appMajeurs||MAJEURS).map(m=><div key={m.id} style={{...S.card,marginBottom:8}}> <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}> <div><div style={{fontWeight:700,color:C.dark}}>{m.prenom} {m.nom||""}</div><div style={{fontSize:11,color:C.light}}>{m.site} | Réf: {m.referentA||"Aucun"}</div></div> <div style={{display:"flex",gap:6,alignItems:"center"}}> <select value={m.referentA||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,"referentA",e.target.value);}} style={{...S.input,width:140,fontSize:12}}> <option value="">Aucun</option> {users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name} {u.type==="nuit"?"(nuit)":""} {u.section==="majeurs"?"[Maj]":""}</option>)} </select> </div> </div> </div>)} </div>} {tab==="creds"&&<div>
+    {tab==="majeurs"&&<div> <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Gestion des Majeurs</div> {(appMajeurs||MAJEURS).map(m=><div key={m.id} style={{...S.card,marginBottom:8}}> <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}> <div><div style={{fontWeight:700,color:C.dark}}>{m.prenom} {m.nom||""}</div><div style={{fontSize:11,color:C.light}}>{m.site} | Réf: {[m.referentA,m.referentB,m.referentC,m.referentD].filter(Boolean).join(", ")||"Aucun"}</div></div> <div style={{display:"flex",gap:6,alignItems:"center"}}> <select value={m.referentA||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,"referentA",e.target.value);}} style={{...S.input,width:120,fontSize:11}}> <option value="">Réf A</option> {users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)} </select> <select value={m.referentB||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,"referentB",e.target.value);}} style={{...S.input,width:120,fontSize:11}}> <option value="">Réf B</option> {users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)} </select> <select value={m.referentC||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,"referentC",e.target.value);}} style={{...S.input,width:120,fontSize:11}}> <option value="">Réf C</option> {users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)} </select> <select value={m.referentD||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,"referentD",e.target.value);}} style={{...S.input,width:120,fontSize:11}}> <option value="">Réf D</option> {users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)} </select> </div> </div> </div>)} </div>} {tab==="creds"&&<div>
       <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 14px",color:C.dark}}>Identifiants de connexion</h3>
       {users.map(u=><div key={u.id} style={{...S.card,marginBottom:6,padding:"10px 14px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -555,7 +551,75 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune présence enregistrée</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Après-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"✅":"❌"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"✅":"❌"}</td></tr>)}</tbody></table></div>}</div>}
  </div>);
 }
-export default function App(){
+export default 
+function ExportPage({rapports,evenements,agenda,jeunes,majeurs,onPurge}){
+const[dateFrom,setDateFrom]=useState("");
+const[dateTo,setDateTo]=useState("");
+const[exporting,setExporting]=useState(false);
+const[done,setDone]=useState(false);
+const allJ=[...JEUNES,...MAJEURS];
+const jName=(id)=>{const j=allJ.find(x=>x.id===id);return j?(j.prenom+" "+(j.nom||"")):"ID:"+id;};
+const doExport=async()=>{
+if(!dateFrom||!dateTo)return alert("Sélectionnez une période");
+setExporting(true);
+try{
+const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+const wb=XLSX.utils.book_new();
+const fR=(rapports||[]).filter(r=>r.date>=dateFrom&&r.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
+const rowsR=[["Date","Jeune","Observation","Auteur"]];
+fR.forEach(r=>rowsR.push([r.date,jName(r.jeuneId),r.observation||"",r.author||""]));
+const ws1=XLSX.utils.aoa_to_sheet(rowsR);
+ws1["!cols"]=[{wch:12},{wch:25},{wch:60},{wch:20}];
+XLSX.utils.book_append_sheet(wb,ws1,"Rapports journaliers");
+const fE=(evenements||[]).filter(e=>e.date>=dateFrom&&e.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
+const rowsE=[["Date","Jeune","Type","Titre","Description","Gravité","Auteur"]];
+fE.forEach(e=>rowsE.push([e.date,jName(e.jeuneId),e.type||"événement",e.titre||"",e.description||"",e.gravite||"",e.author||""]));
+const ws2=XLSX.utils.aoa_to_sheet(rowsE);
+ws2["!cols"]=[{wch:12},{wch:25},{wch:18},{wch:25},{wch:60},{wch:12},{wch:20}];
+XLSX.utils.book_append_sheet(wb,ws2,"Événements indésirables");
+const fA=(agenda||[]).filter(a=>a.date>=dateFrom&&a.date<=dateTo).sort((a,b)=>a.date.localeCompare(b.date));
+const rowsA=[["Date","Heure","Jeune","Type RDV","Lieu","Interlocuteur","Notes","Créé par"]];
+fA.forEach(a=>rowsA.push([a.date,a.heure||"",a.jeuneNom||jName(a.jeuneId),a.type||"",a.lieu||"",a.interlocuteur||"",a.notes||"",a.createdBy||""]));
+const ws3=XLSX.utils.aoa_to_sheet(rowsA);
+ws3["!cols"]=[{wch:12},{wch:8},{wch:25},{wch:15},{wch:25},{wch:25},{wch:50},{wch:20}];
+XLSX.utils.book_append_sheet(wb,ws3,"CR des RDV");
+XLSX.writeFile(wb,"PDSR_Export_"+dateFrom+"_"+dateTo+".xlsx");
+setDone(true);
+}catch(err){alert("Erreur export: "+err.message);}
+setExporting(false);
+};
+const doPurge=()=>{
+if(!dateFrom||!dateTo)return alert("Sélectionnez une période");
+if(!confirm("Supprimer toutes les données (rapports, événements, RDV) de la période "+dateFrom+" au "+dateTo+" ? Cette action est irréversible."))return;
+onPurge(dateFrom,dateTo);
+setDone(false);
+alert("Données purgées pour la période sélectionnée.");
+};
+return(<div style={{maxWidth:600,margin:"0 auto"}}>
+<h2 style={{fontSize:18,fontWeight:900,color:C.dark,marginBottom:16}}>Export Excel hebdomadaire</h2>
+<div style={{...S.card,marginBottom:16}}>
+<div style={{fontWeight:700,fontSize:14,color:C.dark,marginBottom:12}}>Période à exporter</div>
+<div style={{display:"flex",gap:12,marginBottom:16}}>
+<div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:C.light,display:"block",marginBottom:4}}>Du</label><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{...S.input,width:"100%"}}/></div>
+<div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:C.light,display:"block",marginBottom:4}}>Au</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{...S.input,width:"100%"}}/></div>
+</div>
+{dateFrom&&dateTo&&<div style={{background:"#F5F5F5",borderRadius:8,padding:12,marginBottom:12,fontSize:12}}>
+<div><strong>Rapports:</strong> {(rapports||[]).filter(r=>r.date>=dateFrom&&r.date<=dateTo).length}</div>
+<div><strong>Événements:</strong> {(evenements||[]).filter(e=>e.date>=dateFrom&&e.date<=dateTo).length}</div>
+<div><strong>RDV:</strong> {(agenda||[]).filter(a=>a.date>=dateFrom&&a.date<=dateTo).length}</div>
+</div>}
+<div style={{display:"flex",gap:10}}>
+<button onClick={doExport} disabled={exporting} style={{flex:1,background:C.gold,color:"#fff",border:"none",borderRadius:8,padding:"12px 20px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{exporting?"Export en cours...":"Exporter en Excel"}</button>
+</div>
+{done&&<div style={{marginTop:16,padding:12,background:"#E8F5E9",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<span style={{color:"#2E7D32",fontWeight:700,fontSize:13}}>Export terminé !</span>
+<button onClick={doPurge} style={{background:"#C62828",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Purger cette période</button>
+</div>}
+</div>
+</div>);
+}
+
+function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const lsData=loadLS();
   const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
@@ -593,7 +657,8 @@ useEffect(()=>{(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if
         {page==="presences"&&<Presences user={user} presences={presences} onCP={changeP}/>}
         {page==="evenements"&&<Evenements user={user} evenements={evenements} onAdd={addE} onDelete={delE}/>}
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={user}/>}
-        {page==="admin"&&(user.role==="directeur"||user.role==="chef_service")&&<Admin users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val)=>{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}/>}
+        {page==="export"&&(user.role==="directeur"||user.role==="chef_service")&&<ExportPage rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} onPurge={(from,to)=>{setRapports(p=>p.filter(r=>r.date<from||r.date>to));setEvenements(p=>p.filter(e=>e.date<from||e.date>to));setAgenda(p=>p.filter(a=>a.date<from||a.date>to));}}/>}
+      {page==="admin"&&(user.role==="directeur"||user.role==="chef_service")&&<Admin users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val)=>{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}/>}
         {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes}/>}
       {page==="planning"&&<Planning djiPlan={DJI_PLAN} fatPlan={FAT_PLAN} site={user.site}/>}
       </main>
