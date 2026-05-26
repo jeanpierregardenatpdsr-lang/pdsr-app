@@ -485,7 +485,6 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
         </table>}
       </div>
     </div>}
-    </div>}
   </div>);
 }
 
