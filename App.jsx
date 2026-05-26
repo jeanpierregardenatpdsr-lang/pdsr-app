@@ -551,7 +551,6 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune présence enregistrée</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Après-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"✅":"❌"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"✅":"❌"}</td></tr>)}</tbody></table></div>}</div>}
  </div>);
 }
-export default 
 function ExportPage({rapports,evenements,agenda,jeunes,majeurs,onPurge}){
 const[dateFrom,setDateFrom]=useState("");
 const[dateTo,setDateTo]=useState("");
@@ -619,7 +618,7 @@ return(<div style={{maxWidth:600,margin:"0 auto"}}>
 </div>);
 }
 
-function App(){
+export default function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const lsData=loadLS();
   const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
