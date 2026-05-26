@@ -78,7 +78,7 @@ function Sidebar({page,onNav,user,onLogout,open,onClose}){
         </div>
       </div>
       <nav style={{flex:1,padding:"10px 10px"}}>
-        {NAV.filter(n=>(n.id!=="admin"&&n.id!=="export")||(user.role==="directeur"||user.role==="chef_service")).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:2,background:active?`${C.gold}22`:"transparent",color:active?C.sable:"rgba(255,255,255,0.6)",textAlign:"left"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
+        {NAV.filter(n=>{if((n.id==="admin"||n.id==="export")&&user.role!=="directeur"&&user.role!=="chef_service")return false;if(user.isEducMajeur&&(n.id==="jeunes"||n.id==="presences"||n.id==="planning"))return false;if(user.role==="educateur"&&!user.isEducMajeur&&n.id==="majeurs")return false;return true;}).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:2,background:active?`${C.gold}22`:"transparent",color:active?C.sable:"rgba(255,255,255,0.6)",textAlign:"left"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
       </nav>
       <div style={{padding:"10px 10px 22px"}}><button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13,background:"rgba(244,67,54,0.12)",color:"#EF5350"}}><LogOut size={17}/>Déconnexion</button></div>
     </aside>
@@ -93,7 +93,7 @@ function Topbar({title,onMenu,onBack}){
   </header>);
 }
 
-function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda}){
+function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs}){
   const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>user.site==="Tous"||j.site===user.site):(jeunes||JEUNES);
   const todayP=presences.filter(p=>p.date===today);
   const presents=todayP.filter(p=>p.statut==="Présent").length;
@@ -410,6 +410,12 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const[newPrenom,setNewPrenom]=useState("");
   const[newNom,setNewNom]=useState("");
   const[newSite,setNewSite]=useState("Fatick");
+  const[newTelP1,setNewTelP1]=useState("");
+  const[newTelJ,setNewTelJ]=useState("");
+  const[newEmailASE,setNewEmailASE]=useState("");
+  const[newDateD,setNewDateD]=useState("");
+  const[newDateF,setNewDateF]=useState("");
+  const[showAddJeune,setShowAddJeune]=useState(false);
   const[newRole,setNewRole]=useState("educateur");
  const[newType,setNewType]=useState("jour");
  const[newSection,setNewSection]=useState("mineurs");
@@ -419,7 +425,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const addEduc=()=>{if(!newPrenom.trim()||!newNom.trim())return;const login=genLogin(newNom,newPrenom);const id=Math.max(...users.map(u=>u.id))+1;onUpdateUsers([...users,{id,login,password:"pdsr2026",role:"educateur",name:newPrenom,site:newSite,type:newType,section:newSection,initials:newPrenom.substring(0,2).toUpperCase(),assignedIds:[]}]);setNewPrenom("");setNewNom("");setNewType("jour");setNewSection("mineurs");};
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
-  const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"Actif"}]);setNewPrenom("");setNewNom("");};
+  const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:newTelP1,telJeune:newTelJ,emailASE:newEmailASE,dateDebut:newDateD,dateFin:newDateF}]);setNewPrenom("");setNewNom("");setNewTelP1("");setNewTelJ("");setNewEmailASE("");setNewDateD("");setNewDateF("");setShowAddJeune(false);};
   const assignJeune=(jeuneId,educName)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,referentA:educName||""}:j));const educ=users.find(u=>u.name===educName);if(educ&&!educ.assignedIds?.includes(jeuneId)){onUpdateUsers(users.map(u=>u.name===educName?{...u,assignedIds:[...(u.assignedIds||[]),jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educName){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
@@ -441,21 +447,33 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
       {educs.map(u=><div key={u.id} style={{...S.card,marginBottom:8,opacity:u.disabled?0.6:1,borderLeft:u.disabled?"3px solid #C62828":"3px solid transparent"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{u.site} · {u.login} · {u.type==="nuit"?"Nuit":"Jour"} · {u.section==="majeurs"?"Majeurs":"Mineurs"} · {jeunes.filter(j=>j.referentA===u.name||j.referentB===u.name||j.referentC===u.name||j.referentD===u.name).length} jeunes</div></div>
-          <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"✅ Activer":"⛔ Désactiver"}</button> <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+          <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"✅ Activer":"⛔ Désactiver"}</button> <button onClick={()=>{const up=users.map(x=>x.id===u.id?{...x,isEducMajeur:!x.isEducMajeur}:x);onUpdateUsers(up);}} style={{padding:"4px 10px",borderRadius:6,border:u.isEducMajeur?"1px solid #1565C0":"1px solid #9E9E9E",background:u.isEducMajeur?"#E3F2FD":"#F5F5F5",color:u.isEducMajeur?"#1565C0":"#757575",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.isEducMajeur?"👤 Éduc Majeur":"👤 Standard"}</button> <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
       </div>)}
     </div>}
     {tab==="jeunes"&&<div>
       <div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:14}}>
-        <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 10px",color:C.dark}}>Ajouter un jeune</h3>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-          <div><label style={{...S.lbl}}>Prénom</label><input style={{...S.inp}} value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom"/></div>
-          <div><label style={{...S.lbl}}>Nom</label><input style={{...S.inp}} value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom"/></div>
-        </div>
-        <div style={{marginBottom:10}}><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
-        <button onClick={addJeune} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
+        {!showAddJeune&&<button onClick={()=>setShowAddJeune(true)} style={{...S.btnP,marginBottom:12}}><Plus size={14}/>Ajouter un jeune</button>}
+        {showAddJeune&&<div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><h3 style={{fontSize:13,fontWeight:800,margin:0,color:C.dark}}>Ajouter un jeune</h3><button onClick={()=>setShowAddJeune(false)} style={{background:"none",border:"none",cursor:"pointer",color:C.mid}}><X size={16}/></button></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <div><label style={{...S.lbl}}>Prénom</label><input style={{...S.inp}} value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom"/></div>
+            <div><label style={{...S.lbl}}>Nom</label><input style={{...S.inp}} value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom"/></div>
+            <div><label style={{...S.lbl}}>Tél. parent</label><input style={{...S.inp}} value={newTelP1} onChange={e=>setNewTelP1(e.target.value)} placeholder="06 ..."/></div>
+            <div><label style={{...S.lbl}}>Tél. jeune</label><input style={{...S.inp}} value={newTelJ} onChange={e=>setNewTelJ(e.target.value)} placeholder="07 ..."/></div>
+            <div><label style={{...S.lbl}}>Email ASE</label><input style={{...S.inp}} value={newEmailASE} onChange={e=>setNewEmailASE(e.target.value)} placeholder="email@ase.fr"/></div>
+            <div><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
+            <div><label style={{...S.lbl}}>Date début</label><input type="date" style={{...S.inp}} value={newDateD} onChange={e=>setNewDateD(e.target.value)}/></div>
+            <div><label style={{...S.lbl}}>Date fin</label><input type="date" style={{...S.inp}} value={newDateF} onChange={e=>setNewDateF(e.target.value)}/></div>
+          </div>
+          <button onClick={addJeune} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
+        </div>}
       </div>
-      {jeunes.map(j=>{return(<div key={j.id} style={{...S.card,marginBottom:8}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+          <label style={{...S.btnP,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Download size={14}/>Importer Excel<input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={async(e)=>{const f=e.target.files[0];if(!f)return;const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");const data=await f.arrayBuffer();const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws);const maxId=Math.max(...jeunes.map(j=>j.id),0);const newJ=rows.map((r,i)=>({id:maxId+1+i,prenom:r["Prénom"]||r.prenom||"",nom:r["Nom"]||r.nom||"",site:r["Site"]||r.site||"Fatick",referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:r["Tél parent"]||r.telParent||"",telJeune:r["Tél jeune"]||r.telJeune||"",emailASE:r["Email ASE"]||r.emailASE||"",dateDebut:r["Date début"]||r.dateDebut||"",dateFin:r["Date fin"]||r.dateFin||""})).filter(j=>j.prenom);if(newJ.length===0){alert("Aucun jeune trouvé. Colonnes attendues: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin");return;}if(confirm("Importer "+newJ.length+" jeune(s) ?"))onUpdateJeunes([...jeunes,...newJ]);e.target.value="";}}/></label>
+          <span style={{fontSize:10,color:C.mid}}>Colonnes: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin</span>
+        </div>
+            {jeunes.map(j=>{return(<div key={j.id} style={{...S.card,marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{j.prenom} {j.nom}</div><div style={{fontSize:11,color:C.light}}>{j.site} · Réf: {[j.referentA,j.referentB,j.referentC,j.referentD].filter(Boolean).join(", ")||"Non assigné"}</div></div>
           <button onClick={()=>removeJeune(j.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
@@ -648,7 +666,7 @@ useEffect(()=>{(async()=>{let d=await fbGet("data");if(d){fbSkip.current=true;if
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
       <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined}/>
       <main style={{flex:1,overflowY:"auto"}}>
-        {page==="dashboard"&&<Dashboard setPage={setPage} user={user} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda}/>}
+        {page==="dashboard"&&<Dashboard setPage={setPage} user={user} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs}/>}
         {page==="jeunes"&&<JeunesList user={user} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:11,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={sel} rapports={rapports} presences={presences} evenements={evenements} user={user} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
