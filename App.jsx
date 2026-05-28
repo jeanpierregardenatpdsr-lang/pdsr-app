@@ -1814,5 +1814,4 @@ useEffect(()=>{(async()=>{loadFb(await fbGet("data"));})();},[]);
     </div>
   </div>);
 }
-                                                                                  
-export default App;
+                                                                                
