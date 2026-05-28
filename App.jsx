@@ -94,16 +94,20 @@ function Topbar({title,onMenu,onBack}){
 }
 
 function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs}){
-  const vj=user.role==="educateur"?(jeunes||JEUNES).filter(j=>user.site==="Tous"||j.site===user.site):(jeunes||JEUNES);
+  const isMajEduc=user.role==="educateur"&&user.isEducMajeur;
+  const pool=isMajEduc?(majeurs||MAJEURS):(jeunes||JEUNES);
+  const vj=user.role==="educateur"?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
   const todayP=presences.filter(p=>p.date===today);
-  const presents=todayP.filter(p=>p.statut==="Présent").length;
-  const graves=(evenements||[]).filter(e=>e.gravite==="Grave").length;
+  const myPresents=todayP.filter(p=>p.statut==="Présent"&&vj.some(j=>j.id===p.jeuneId)).length;
+  const myRapports=(rapports||[]).filter(r=>r.date===today&&vj.some(j=>j.id===r.jeuneId)).length;
+  const myGraves=(evenements||[]).filter(e=>e.gravite==="Grave"&&vj.some(j=>j.id===e.jeuneId)).length;
+  const jeunesNav=isMajEduc?"majeurs":"jeunes";
   return(<div style={{padding:"20px 16px",maxWidth:800,margin:"0 auto",animation:"fadeIn 0.4s ease"}}>
     <p style={{color:C.light,fontSize:12,margin:"0 0 4px",letterSpacing:"0.02em"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
     <h1 style={{fontSize:24,fontWeight:900,color:C.dark,margin:"0 0 22px",letterSpacing:"-0.01em"}}>Bonjour, {user.name.split(" ")[0]} 👋</h1>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-      {[{l:"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:"jeunes"},{l:"Présents aujourd'hui",v:`${presents}/${vj.length}`,i:"✔️",c:"#2E7D32",bg:"#E8F5E9",nav:"presences"},{l:"Rapports ce jour",v:(rapports||[]).filter(r=>r.date===today).length,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:graves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
-        <div key={i} onClick={()=>s.nav&&setPage(s.nav)} style={{...S.card,display:"flex",alignItems:"center",gap:14,padding:"16px",marginBottom:0,cursor:"pointer",borderLeft:"4px solid "+s.c,animation:"fadeIn 0.4s ease "+(i*0.08)+"s both"}}>
+      {[{l:isMajEduc?"Majeurs suivis":"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:jeunesNav},{l:"Présents aujourd'hui",v:`${myPresents}/${vj.length}`,i:"✔️",c:"#2E7D32",bg:"#E8F5E9",nav:isMajEduc?null:"presences"},{l:"Rapports ce jour",v:myRapports,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:myGraves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
+        <div key={i} onClick={()=>s.nav&&setPage(s.nav)} style={{...S.card,display:"flex",alignItems:"center",gap:14,padding:"16px",marginBottom:0,cursor:s.nav?"pointer":"default",borderLeft:"4px solid "+s.c,animation:"fadeIn 0.4s ease "+(i*0.08)+"s both",opacity:s.nav?1:0.7}}>
           <div style={{width:44,height:44,borderRadius:12,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{s.i}</div>
           <div><div style={{fontSize:26,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div><div style={{fontSize:10,color:C.light,fontWeight:700,marginTop:3,letterSpacing:"0.03em",textTransform:"uppercase"}}>{s.l}</div></div>
         </div>
