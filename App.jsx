@@ -1813,6 +1813,6 @@ useEffect(()=>{(async()=>{loadFb(await fbGet("data"));})();},[]);
       </main>
     </div>
   </div>);
-}
+
                                                                                   
 export default App;
