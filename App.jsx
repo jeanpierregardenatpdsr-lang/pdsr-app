@@ -223,7 +223,8 @@ function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll}){
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[titre,setTitre]=useState(""),[ desc,setDesc]=useState(""),[ grav,setGrav]=useState("Léger"),[ date2,setDate2]=useState(today),[categ,setCateg]=useState("jeune"),[typeEv,setTypeEv]=useState("incident");
   const[open2,setOpen2]=useState(false),[ saved,setSaved]=useState(false),[ fg,setFg]=useState("Tous");
-  const vis=(evenements||[]).filter(e=>{const ok=vj.some(j=>j.id===e.jeuneId);const fok=fg==="Tous"||e.gravite===fg;return ok&&fok;});
+  const canSeeEduc=user.role==="chef_service"||user.role==="directeur";
+  const vis=(evenements||[]).filter(e=>{if(e.categorie==="educateur"&&!canSeeEduc)return false;const ok=e.categorie==="educateur"||vj.some(j=>j.id===e.jeuneId);const fok=fg==="Tous"||e.gravite===fg;return ok&&fok;});
   const handle=()=>{if(!titre.trim())return;onAdd({jeuneId:(categ==="jeune"||categ==="jeune_pro")?+jid:null,date:date2,titre,description:desc,gravite:grav,type:typeEv,categorie:categ});setSaved(true);setTitre("");setDesc("");setTimeout(()=>{setSaved(false);setOpen2(false);},2000);};
   return(<div style={{padding:"18px 14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
