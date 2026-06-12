@@ -289,6 +289,9 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
   useEffect(()=>{setWeekNum(calcSiteWeek(site));},[site,sejourConfig]);
   const[groupText,setGroupText]=useState("");
   const[persoTexts,setPersoTexts]=useState({});
+  const[destTexts,setDestTexts]=useState({});
+  const deriveDest=(j)=>{const em=(j&&j.emailASE||"").trim();if(!em||!em.includes("@"))return"";const local=em.split("@")[0].replace(/[0-9_-]+/g,".");const parts=local.split(".").filter(Boolean);if(parts.length>=2){return parts[0][0].toUpperCase()+" "+parts[parts.length-1].toUpperCase();}if(parts.length===1&&parts[0].length>2){return parts[0][0].toUpperCase()+" "+parts[0].slice(1).toUpperCase();}return"";};
+  const autoFillDest=(js)=>{setDestTexts(p=>{const n={...p};js.forEach(j=>{if(!(n[j.id]||"").trim()){const d=deriveDest(j);if(d)n[j.id]=d;}});return n;});};
   const[hebdoStatuts,setHebdoStatuts]=useState({});
   const canValider=user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site";
   const stKey=(jId)=>site+"_S"+weekNum+"_"+jId;
@@ -308,6 +311,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
     if(saved&&saved.hebdo){
       if(saved.hebdo[site+"_group"])setGroupText(saved.hebdo[site+"_group"]);
       if(saved.hebdo.perso)setPersoTexts(saved.hebdo.perso);
+      if(saved.hebdo.dest)setDestTexts(saved.hebdo.dest);
       if(saved.hebdo.statuts)setHebdoStatuts(saved.hebdo.statuts);
     }
   },[site]);
@@ -317,6 +321,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
     if(!saved.hebdo)saved.hebdo={};
     saved.hebdo[site+"_group"]=groupText;
     saved.hebdo.perso={...persoTexts};
+    saved.hebdo.dest={...destTexts};
     saved.hebdo.statuts={...hebdoStatuts};
     try{localStorage.setItem(LS_KEY,JSON.stringify({...saved,hebdo:saved.hebdo}));}catch(e){}
     fbSet("hebdo",saved.hebdo);
@@ -345,11 +350,11 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
       }catch(err){errors.push(j.prenom+" "+(j.nom||"")+" : "+err.message);}
       done++;
     }
-    if(Object.keys(results).length>0){setPersoTexts(p=>({...p,...results}));setTimeout(saveHebdoData,200);}
+    if(Object.keys(results).length>0){setPersoTexts(p=>({...p,...results}));autoFillDest(cible.filter(j=>results[j.id]));setTimeout(saveHebdoData,200);}
     setIaLoading(false);setIaProgress("");
     alert("Synthèse IA terminée : "+Object.keys(results).length+"/"+cible.length+" jeunes."+(errors.length?"\n\nErreurs :\n"+errors.join("\n"):""));
   };
-  const compileWeekRapports=()=>{const getISOWeek=(dateStr)=>{const d=new Date(dateStr);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w1=new Date(d.getFullYear(),0,4);return String(1+Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,"0")};const compiled={};let total=0;const{start:wkS,end:wkE}=weekRange(weekNum,site);siteJeunes.forEach(j=>{if(getStatut(j.id).statut!=="brouillon")return;const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id||!r.date)return false;return r.date>=wkS&&r.date<=wkE});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n");total+=jRapports.length}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes, "+total+" rapports trouvés pour la semaine "+weekNum)};
+  const compileWeekRapports=()=>{const getISOWeek=(dateStr)=>{const d=new Date(dateStr);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w1=new Date(d.getFullYear(),0,4);return String(1+Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,"0")};const compiled={};let total=0;const{start:wkS,end:wkE}=weekRange(weekNum,site);siteJeunes.forEach(j=>{if(getStatut(j.id).statut!=="brouillon")return;const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id||!r.date)return false;return r.date>=wkS&&r.date<=wkE});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n");total+=jRapports.length}});setPersoTexts(p=>({...p,...compiled}));autoFillDest(siteJeunes.filter(j=>compiled[j.id]));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes, "+total+" rapports trouvés pour la semaine "+weekNum)};
 const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
@@ -367,25 +372,28 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
               new TableCell({borders,width:{size:3000,type:WidthType.DXA},verticalAlign:"center",children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:logoBuffer,transformation:{width:120,height:100},type:"png",altText:{title:"Logo PDSR",description:"Logo Association PDSR",name:"logo"}})]}),new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:100},children:[new TextRun({text:"Association PDSR",bold:true,size:22,font:"Arial"})]})]}),
               new TableCell({borders,width:{size:6506,type:WidthType.DXA},children:[
                 new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Rapport Hebdomadaire",bold:true,size:28,font:"Arial"})]}),
-                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:jeune.prenom+" "+jeune.nom,bold:true,size:24,font:"Arial"})]}),
-                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Semaine S"+weekNum,size:22,font:"Arial"})]}),
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:(jeune.nom||"").toUpperCase()+" "+jeune.prenom,bold:true,size:24,font:"Arial"})]}),
+                new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Semaine "+parseInt(weekNum,10),size:22,font:"Arial"})]}),
                 new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Groupe de "+site.toUpperCase(),bold:true,size:22,font:"Arial"})]})
               ]})
             ]})
           ]})
         ]})},
         footers:{default:new Footer({children:[
-          new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:200},children:[new TextRun({text:refs,bold:true,size:20,font:"Arial"})]}),
-          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"\u00c9ducateurs sp\u00e9cialis\u00e9s",italics:true,size:18,font:"Arial"})]}),
           new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:100},children:[new TextRun({text:"Association PDSR, 28 rue rouget de Lisle 93160 Noisy le Grand",size:16,font:"Arial"})]}),
-          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"associationpdsr@gmail.com / t\u00e9l : 06 24 75 34 31 - 05 17 22 59 33",size:16,font:"Arial"})]})
+          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"Secr\u00e9tariat : 28 Cit\u00e9 de la plante 16100 Chateaubernard",size:16,font:"Arial"})]}),
+          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"associationpdsr@gmail.com / t\u00e9l : 06 24 75 34 31 - 05 17 22 59 33",size:16,font:"Arial"})]}),
+          new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:"SIRET : 835 155 466 00013  APE : 88999",size:16,font:"Arial"})]})
         ]})},
         children:[
-          new Paragraph({spacing:{after:200},children:[new TextRun({text:"A l\u2019attention de Mme Eynac C\u00e9line, Mr Bossu Sylvain et Mme Souchon Sylvia",italics:true,size:22})]}),
+          new Paragraph({spacing:{after:200},children:[new TextRun({text:"A l\u2019attention de "+((destTexts[jeune.id]||"").trim()||deriveDest(jeune)||"\u2026"),italics:true,size:22})]}),
           new Paragraph({spacing:{before:300,after:200},children:[new TextRun({text:"Cette semaine sur le groupe :",bold:true,size:24,underline:{}})]}),
           ...groupText.split("\n").map(line=>new Paragraph({spacing:{after:100},children:[new TextRun({text:line,size:22})]})),
-          new Paragraph({spacing:{before:400,after:200},children:[new TextRun({text:"La semaine de "+jeune.nom+" "+jeune.prenom+" :",bold:true,size:24,underline:{}})]}),
+          new Paragraph({spacing:{before:400,after:200},children:[new TextRun({text:"La semaine de "+(jeune.nom||"").toUpperCase()+" "+jeune.prenom+" :",bold:true,size:24,underline:{}})]}),
           ...(persoTexts[jeune.id]||"").split("\n").map(line=>new Paragraph({spacing:{after:100},children:[new TextRun({text:line,size:22})]})),
+          new Paragraph({spacing:{before:500},border:{top:{style:BorderStyle.SINGLE,size:4,color:"999999"}},children:[]}),
+          new Paragraph({spacing:{before:200},children:[new TextRun({text:refs,bold:true,size:22,font:"Arial"})]}),
+          new Paragraph({children:[new TextRun({text:"Educateurs sp\u00e9cialis\u00e9s",italics:true,size:20,font:"Arial"})]}),
         ]
       }]
     });
@@ -449,7 +457,7 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
         </div>
       </div>
       {selJeune===String(j.id)&&<div style={{marginTop:"0.5rem"}}>
-        {getStatut(j.id).statut!=="brouillon"&&<div style={{fontSize:11,color:"#2E7D32",fontWeight:700,marginBottom:4}}>🔒 Rapport {ST_BADGE[getStatut(j.id).statut].label.toLowerCase()} — repasser en brouillon pour modifier</div>}<textarea readOnly={getStatut(j.id).statut!=="brouillon"} value={persoTexts[j.id]||""} onChange={e=>setPersoTexts(p=>({...p,[j.id]:e.target.value}))} onBlur={saveHebdoData} rows={5} style={{width:"100%",padding:"0.5rem",borderRadius:6,border:"1px solid #ccc",fontFamily:"Arial",fontSize:"0.9rem"}} placeholder={"La semaine de "+j.prenom+"..."}/>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}}><label style={{fontSize:11,fontWeight:700,color:"#555"}}>À l'attention de :</label><input value={destTexts[j.id]||""} readOnly={getStatut(j.id).statut!=="brouillon"} onChange={e=>setDestTexts(p=>({...p,[j.id]:e.target.value}))} onBlur={saveHebdoData} placeholder={"Auto : "+("…")+" (généré depuis l'email ASE à la compilation)"} style={{flex:1,minWidth:180,padding:"0.35rem 0.5rem",borderRadius:6,border:"1px solid #ccc",fontSize:"0.85rem",fontFamily:"inherit"}}/></div>{getStatut(j.id).statut!=="brouillon"&&<div style={{fontSize:11,color:"#2E7D32",fontWeight:700,marginBottom:4}}>🔒 Rapport {ST_BADGE[getStatut(j.id).statut].label.toLowerCase()} — repasser en brouillon pour modifier</div>}<textarea readOnly={getStatut(j.id).statut!=="brouillon"} value={persoTexts[j.id]||""} onChange={e=>setPersoTexts(p=>({...p,[j.id]:e.target.value}))} onBlur={saveHebdoData} rows={5} style={{width:"100%",padding:"0.5rem",borderRadius:6,border:"1px solid #ccc",fontFamily:"Arial",fontSize:"0.9rem"}} placeholder={"La semaine de "+j.prenom+"..."}/>
         {preview&&<div style={{marginTop:"0.5rem",background:"#fff",border:"1px solid #ddd",borderRadius:6,padding:"1rem"}}>
           <div style={{textAlign:"center",fontWeight:700,fontSize:"1.1rem",borderBottom:"2px solid "+C.gold,paddingBottom:"0.5rem",marginBottom:"1rem"}}>
             <div>Association PDSR</div><div>Rapport Hebdomadaire</div><div>{j.prenom} {j.nom}</div><div>Semaine S{weekNum} - Groupe de {site.toUpperCase()}</div>
