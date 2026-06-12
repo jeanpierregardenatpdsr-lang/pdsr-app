@@ -6,7 +6,7 @@ import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
 const LS_KEY="pdsr_data";
 const loadLS=()=>{try{const d=JSON.parse(localStorage.getItem(LS_KEY));return d||null;}catch{return null;}};
-const saveLS=(rapports,presences,evenements,users,jeunes,agenda,loginLogs,majeurs,rapportsSite,djiPlan,fatPlan,deletionLogs,projets)=>{try{const prev=JSON.parse(localStorage.getItem(LS_KEY))||{};localStorage.setItem(LS_KEY,JSON.stringify({...prev,rapports,presences,evenements,users,jeunes,agenda,loginLogs,majeurs,rapportsSite,djiPlan,fatPlan,deletionLogs,projets,ts:Date.now()}));}catch{}};
+const saveLS=(rapports,presences,evenements,users,jeunes,agenda,loginLogs,majeurs,rapportsSite,djiPlan,fatPlan,deletionLogs,projets,sejourConfig)=>{try{const prev=JSON.parse(localStorage.getItem(LS_KEY))||{};localStorage.setItem(LS_KEY,JSON.stringify({...prev,rapports,presences,evenements,users,jeunes,agenda,loginLogs,majeurs,rapportsSite,djiPlan,fatPlan,deletionLogs,projets,sejourConfig,ts:Date.now()}));}catch{}};
 const FB_URL="https://pdsr-app-default-rtdb.firebaseio.com";
 const FB_SECRET="GhVuY7AXz2QeB8shFhV4SEZvQAyrrf0YjeOqleEw";
 const fbSet=async(p,d)=>{try{await fetch(FB_URL+"/"+p+".json?auth="+FB_SECRET,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});}catch(e){}};
@@ -274,16 +274,19 @@ function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll}){
   </div>);
 }
 
-function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveHebdo}){
+function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveHebdo,sejourConfig}){
   const allJeunes=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];
   const mj=user.role==="educateur"?allJeunes.filter(j=>user.site==="Tous"||j.site===user.site):allJeunes;
   const[site,setSite]=useState("Djilass");
   const siteJeunes=mj.filter(j=>j.site===site);
   const[selJeune,setSelJeune]=useState("");
   const getISOWeekNum=(dt)=>{const d=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y1=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil((((d-y1)/86400000)+1)/7);};
-  const SITE_START_WEEK={Djilass:14,Fatick:12};
-  const calcSiteWeek=(s)=>{const now=new Date();const isoW=getISOWeekNum(now);const startW=SITE_START_WEEK[s]||1;const sw=isoW-startW+1;return String(sw>0?sw:1).padStart(2,"0");};
+  const DEFAUT_DEBUT={Djilass:"2026-03-30",Fatick:"2026-03-16"};
+  const getDebut=(s)=>(sejourConfig&&sejourConfig[s]&&sejourConfig[s].dateDebut)||DEFAUT_DEBUT[s]||DEFAUT_DEBUT.Djilass;
+  const calcSiteWeek=(s)=>{const d0=new Date(getDebut(s)+"T00:00:00");const diff=Math.floor((Date.now()-d0.getTime())/86400000);const sw=Math.floor(diff/7)+1;return String(sw>0?sw:1).padStart(2,"0");};
+  const weekRange=(w,s)=>{const d0=new Date(getDebut(s)+"T00:00:00");const st=new Date(d0);st.setDate(d0.getDate()+(parseInt(w,10)-1)*7);const en=new Date(st);en.setDate(st.getDate()+6);const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");return{start:iso(st),end:iso(en)};};
   const[weekNum,setWeekNum]=useState(()=>calcSiteWeek("Djilass"));
+  useEffect(()=>{setWeekNum(calcSiteWeek(site));},[site,sejourConfig]);
   const[groupText,setGroupText]=useState("");
   const[persoTexts,setPersoTexts]=useState({});
   const[hebdoStatuts,setHebdoStatuts]=useState({});
@@ -326,13 +329,14 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
     if(iaLoading)return;
     if(!confirm("Lancer la synthèse IA des rapports journaliers et événements de la semaine "+weekNum+" pour le site de "+site+" ?\n\nLes parties personnelles existantes seront remplacées."))return;
     setIaLoading(true);
+    const{start:wkS,end:wkE}=weekRange(weekNum,site);
     const results={};const errors=[];let done=0;
-    const cible=siteJeunes.filter(j=>{if(getStatut(j.id).statut!=="brouillon")return false;const jr=(rapports||[]).filter(r=>r.jeuneId===j.id&&r.date&&getISOWeekStr(r.date)===weekNum);const je=(evenements||[]).filter(e=>e.jeuneId===j.id&&e.date&&getISOWeekStr(e.date)===weekNum);return jr.length>0||je.length>0;});
+    const cible=siteJeunes.filter(j=>{if(getStatut(j.id).statut!=="brouillon")return false;const jr=(rapports||[]).filter(r=>r.jeuneId===j.id&&r.date&&getISOWeekStr(r.date)===isoTarget);const je=(evenements||[]).filter(e=>e.jeuneId===j.id&&e.date&&getISOWeekStr(e.date)===isoTarget);return jr.length>0||je.length>0;});
     if(cible.length===0){alert("Aucun rapport ni événement trouvé pour la semaine "+weekNum+".");setIaLoading(false);setIaProgress("");return;}
     for(const j of cible){
       setIaProgress(j.prenom+" "+(j.nom||"")+" ("+(done+1)+"/"+cible.length+")");
-      const jRapports=(rapports||[]).filter(r=>r.jeuneId===j.id&&r.date&&getISOWeekStr(r.date)===weekNum).sort((a,b)=>a.date.localeCompare(b.date)).map(r=>({date:r.date,typeContact:r.typeContact||"journee",observation:r.observation||""}));
-      const jEvenements=(evenements||[]).filter(e=>e.jeuneId===j.id&&e.date&&getISOWeekStr(e.date)===weekNum).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>({date:e.date,titre:e.titre||"",description:e.description||"",gravite:e.gravite||"",type:e.type||""}));
+      const jRapports=(rapports||[]).filter(r=>r.jeuneId===j.id&&r.date&&getISOWeekStr(r.date)===isoTarget).sort((a,b)=>a.date.localeCompare(b.date)).map(r=>({date:r.date,typeContact:r.typeContact||"journee",observation:r.observation||""}));
+      const jEvenements=(evenements||[]).filter(e=>e.jeuneId===j.id&&e.date&&getISOWeekStr(e.date)===isoTarget).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>({date:e.date,titre:e.titre||"",description:e.description||"",gravite:e.gravite||"",type:e.type||""}));
       try{
         const resp=await fetch("/api/synthese-hebdo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jeune:{prenom:j.prenom,nom:j.nom},semaine:weekNum,site,rapports:jRapports,evenements:jEvenements})});
         if(!resp.ok)throw new Error("HTTP "+resp.status);
@@ -345,7 +349,7 @@ function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveH
     setIaLoading(false);setIaProgress("");
     alert("Synthèse IA terminée : "+Object.keys(results).length+"/"+cible.length+" jeunes."+(errors.length?"\n\nErreurs :\n"+errors.join("\n"):""));
   };
-  const compileWeekRapports=()=>{const getISOWeek=(dateStr)=>{const d=new Date(dateStr);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w1=new Date(d.getFullYear(),0,4);return String(1+Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,"0")};const compiled={};let total=0;siteJeunes.forEach(j=>{if(getStatut(j.id).statut!=="brouillon")return;const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id||!r.date)return false;return getISOWeek(r.date)===weekNum});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n");total+=jRapports.length}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes, "+total+" rapports trouvés pour la semaine "+weekNum)};
+  const compileWeekRapports=()=>{const getISOWeek=(dateStr)=>{const d=new Date(dateStr);d.setHours(0,0,0,0);d.setDate(d.getDate()+3-(d.getDay()+6)%7);const w1=new Date(d.getFullYear(),0,4);return String(1+Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,"0")};const compiled={};let total=0;const{start:wkS,end:wkE}=weekRange(weekNum,site);siteJeunes.forEach(j=>{if(getStatut(j.id).statut!=="brouillon")return;const jRapports=(rapports||[]).filter(r=>{if(r.jeuneId!==j.id||!r.date)return false;return r.date>=wkS&&r.date<=wkE});if(jRapports.length>0){jRapports.sort((a,b)=>a.date.localeCompare(b.date));compiled[j.id]=jRapports.map(r=>{const dt=new Date(r.date);const dayName=dt.toLocaleDateString("fr-FR",{weekday:"long"});return dayName.charAt(0).toUpperCase()+dayName.slice(1)+" ("+r.date+") : "+r.observation}).join("\n\n");total+=jRapports.length}});setPersoTexts(p=>({...p,...compiled}));setTimeout(saveHebdoData,200);alert("Compilation terminée : "+Object.keys(compiled).length+" jeunes, "+total+" rapports trouvés pour la semaine "+weekNum)};
 const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.prenom);const logoB64=LOGO.split(",")[1];const logoBin=atob(logoB64);const logoBuffer=new Uint8Array(logoBin.length);for(let i=0;i<logoBin.length;i++)logoBuffer[i]=logoBin.charCodeAt(i);
     const fileName=getFileName(jeune);
     const ra=refA(jeune.id);
@@ -423,7 +427,7 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
     <h2 style={{fontSize:"1.3rem",fontWeight:700,marginBottom:"1rem",color:C.gold}}>Rapports Hebdomadaires</h2>
     <div style={{display:"flex",gap:"1rem",marginBottom:"1rem",flexWrap:"wrap"}}>
       <div><label style={{fontWeight:600}}>Site : </label><select value={site} onChange={e=>{setSite(e.target.value);setSelJeune("");setWeekNum(calcSiteWeek(e.target.value));}} style={{padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}}><option>Djilass</option><option>Fatick</option></select></div>
-      <div><label style={{fontWeight:600}}>Semaine : </label><input type="text" value={weekNum} onChange={e=>setWeekNum(e.target.value.replace(/[^0-9]/g,"").substring(0,2))} style={{width:60,padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}} placeholder="01"/></div>
+      <div><label style={{fontWeight:600}}>Semaine : </label><input type="text" value={weekNum} onChange={e=>setWeekNum(e.target.value.replace(/[^0-9]/g,"").substring(0,2))} style={{width:60,padding:"0.4rem",borderRadius:6,border:"1px solid #ccc"}} placeholder="01"/>{(()=>{if(!weekNum||!parseInt(weekNum,10))return null;const{start,end}=weekRange(weekNum,site);return<span style={{fontSize:11,color:C.light,marginLeft:8}}>du {fmt(start)} au {fmt(end)}</span>;})()}</div>
     <button onClick={compileWeekRapports} style={{background:C.goldDark,color:"#fff",border:"none",borderRadius:6,padding:"0.4rem 1rem",cursor:"pointer",fontWeight:600,fontSize:"0.85rem",display:"flex",alignItems:"center",gap:"0.3rem"}} title="Compiler automatiquement les rapports journaliers de cette semaine"><FileText size={14}/> Compiler la semaine</button>
     {(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<button onClick={syntheseIA} disabled={iaLoading} style={{background:iaLoading?"#9E9E9E":C.primary,color:"#fff",border:"none",borderRadius:6,padding:"0.4rem 1rem",cursor:iaLoading?"wait":"pointer",fontWeight:600,fontSize:"0.85rem",display:"flex",alignItems:"center",gap:"0.3rem"}} title="Synthétiser par IA les rapports journaliers et événements de la semaine en un texte hebdomadaire par jeune"><BarChart2 size={14}/> {iaLoading?("Synthèse... "+iaProgress):"Synthèse IA"}</button>}
     </div>
@@ -575,7 +579,7 @@ function Planning({djiPlan,fatPlan,site,user,onUpdate}){
 
 function exportIncidentsXLSX(evenements,jeunes){const rows=[["Date","Jeune","Titre","Description","Gravité","Horodatage","N° Suivi","Catégorie"]];(evenements||[]).forEach(ev=>{const j=jeunes.find(j2=>j2.id===ev.jeuneId);rows.push([ev.date,j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId),ev.titre,ev.description,ev.gravite||"normal"]);});const bom="﻿";const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incidents_pdsr_"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
-function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,rapports,evenements}){
+function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,rapports,evenements,sejourConfig,onUpdateSejours}){
   const[tab,setTab]=useState("educs");const[logTab,setLogTab]=useState("connexions");
   const[newPrenom,setNewPrenom]=useState("");
   const[newNom,setNewNom]=useState("");
@@ -602,7 +606,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    <div style={{display:"flex",gap:7,marginBottom:16}}>{[{k:"educs",l:"Éducateurs"},{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"},{k:"creds",l:"Identifiants"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"}].map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
+    <div style={{display:"flex",gap:7,marginBottom:16}}>{[{k:"educs",l:"Éducateurs"},{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"},{k:"creds",l:"Identifiants"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},{k:"sejours",l:"Séjours"}].map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     {tab==="educs"&&<div>
       <div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:14}}>
         <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 10px",color:C.dark}}>Ajouter un éducateur</h3>
@@ -702,6 +706,19 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
       </div>)}
     </div>}
 
+    {tab==="sejours"&&(()=>{
+      const calcW=(d)=>{if(!d)return"—";const d0=new Date(d+"T00:00:00");if(isNaN(d0))return"—";const diff=Math.floor((Date.now()-d0.getTime())/86400000);if(diff<0)return"démarre le "+d;const sw=Math.floor(diff/7)+1;return"semaine "+String(sw).padStart(2,"0")+" en cours";};
+      return(<div>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Paramétrage des séjours</div>
+        <div style={{fontSize:11,color:C.light,marginBottom:14}}>Date de début de séjour par site (lundi de la semaine 1). Le numéro de semaine du rapport hebdomadaire, la compilation et la synthèse IA s'appuient sur ces dates. À mettre à jour à chaque nouveau séjour.</div>
+        {["Fatick","Djilass"].map(s=>{const d=(sejourConfig&&sejourConfig[s]&&sejourConfig[s].dateDebut)||"";return(<div key={s} style={{...S.card,marginBottom:10,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+          <div style={{minWidth:90,fontWeight:900,color:C.dark,fontSize:15}}>{s}</div>
+          <div><label style={{...S.lbl}}>Début du séjour (semaine 1)</label><input type="date" value={d} onChange={e=>onUpdateSejours&&onUpdateSejours(s,e.target.value)} style={{...S.inp,width:"auto"}}/></div>
+          <div style={{background:C.goldLight,color:C.goldDark,borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:800}}>{calcW(d)}</div>
+        </div>);})}
+        <div style={{fontSize:11,color:C.light,marginTop:6}}>⚠ Modifier une date en cours de séjour renumérote les semaines : les rapports hebdo déjà validés restent attachés à leur ancien numéro de semaine.</div>
+      </div>);
+    })()}
     {tab==="modifs"&&(()=>{
       const poolAll=[...(jeunes||[]),...(appMajeurs||[])];
       const jName=(id)=>{const j=poolAll.find(x=>x.id===id);return j?(j.prenom+" "+(j.nom||"")):"—";};
@@ -1003,14 +1020,15 @@ const[appMajeurs,setAppMajeurs]=useState(lsData?.majeurs||MAJEURS);
 const[appDjiPlan,setAppDjiPlan]=useState(lsData?.djiPlan||DJI_PLAN);
 const[appFatPlan,setAppFatPlan]=useState(lsData?.fatPlan||FAT_PLAN);
 const[projets,setProjets]=useState(Array.isArray(lsData?.projets)?lsData.projets:[]);
+const[sejourConfig,setSejourConfig]=useState(lsData?.sejourConfig||{Djilass:{dateDebut:"2026-03-30"},Fatick:{dateDebut:"2026-03-16"}});
   
-  useEffect(()=>{if(window._lsTimer)clearTimeout(window._lsTimer);window._lsTimer=setTimeout(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets);},500);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets,user]);
+  useEffect(()=>{if(window._lsTimer)clearTimeout(window._lsTimer);window._lsTimer=setTimeout(()=>{saveLS(rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig);},500);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig,user]);
 // Firebase sync
 const fbSkip=useRef(false);
 const fbLoaded=useRef(false);
 const toArr=(v)=>!v?[]:Array.isArray(v)?v.filter(Boolean):Object.values(v).filter(Boolean);
-useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;if(!fbLoaded.current)return;if(window._fbTimer)clearTimeout(window._fbTimer);window._fbTimer=setTimeout(()=>{const data={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets};fbSet("data",data);},2000);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets]);
-const loadFb=(d)=>{if(!d){fbLoaded.current=true;return;}fbSkip.current=true;if(d.rapports)setRapports(toArr(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(toArr(d.evenements));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda(toArr(d.agenda));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs));if(d.projets)setProjets(toArr(d.projets));fbLoaded.current=true;};
+useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;if(!fbLoaded.current)return;if(window._fbTimer)clearTimeout(window._fbTimer);window._fbTimer=setTimeout(()=>{const data={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig};fbSet("data",data);},2000);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig]);
+const loadFb=(d)=>{if(!d){fbLoaded.current=true;return;}fbSkip.current=true;if(d.rapports)setRapports(toArr(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements)setEvenements(toArr(d.evenements));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda(toArr(d.agenda));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs));if(d.projets)setProjets(toArr(d.projets));if(d.sejourConfig)setSejourConfig(d.sejourConfig);fbLoaded.current=true;};
 useEffect(()=>{(async()=>{loadFb(await fbGet("data"));})();},[]);
 
   if(!user)return<Login onLogin={u=>{if(u.role==="educateur"||u.role==="coordinateur_site"){const pool=u.isEducMajeur?[...(appMajeurs||MAJEURS)]:[...(appJeunes||JEUNES)];u.assignedIds=pool.filter(j=>j.referentA===u.name||j.referentB===u.name).map(j=>j.id);}setLoginLogs(prev=>[{id:Date.now(),user:u.name||u.login,role:u.role,date:new Date().toISOString(),ts:Date.now()},...prev].slice(0,500));setUser(u);setPage("dashboard");}}/>;
@@ -1038,13 +1056,11 @@ useEffect(()=>{(async()=>{loadFb(await fbGet("data"));})();},[]);
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={user}/>}
         {page==="rapport-site"&&(user.role==="coordinateur_site"||user.role==="chef_service"||user.role==="directeur")&&<RapportSite user={user} rapportsSite={rapportsSite} onSave={r=>{setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<ExportPage rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to)=>{setRapports(p=>p.filter(r=>r.date<from||r.date>to));setEvenements(p=>p.filter(e=>e.date<from||e.date>to));setAgenda(p=>p.filter(a=>a.date<from||a.date>to));}}/>}
-      {page==="admin"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<Admin rapports={rapports} evenements={evenements} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>setLoginLogs([])} onPurgeDeletionLogs={()=>setDeletionLogs([])}/>}
-        {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs}/>}
+      {page==="admin"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<Admin rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>setLoginLogs([])} onPurgeDeletionLogs={()=>setDeletionLogs([])}/>}
+        {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
         {page==="projets"&&<ProjetsPersonnalises user={user} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets}/>}
       {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={user.site} user={user} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
       </main>
     </div>
   </div>);
 }
-
-       
