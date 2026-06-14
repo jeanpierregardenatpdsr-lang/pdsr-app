@@ -591,8 +591,9 @@ function Planning({djiPlan,fatPlan,site,user,onUpdate}){
 
 function exportIncidentsXLSX(evenements,jeunes){const rows=[["Date","Jeune","Titre","Description","Gravité","Horodatage","N° Suivi","Catégorie"]];(evenements||[]).forEach(ev=>{const j=jeunes.find(j2=>j2.id===ev.jeuneId);rows.push([ev.date,j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId),ev.titre,ev.description,ev.gravite||"normal"]);});const bom="﻿";const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incidents_pdsr_"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
-function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,rapports,evenements,sejourConfig,onUpdateSejours}){
+function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements}){
   const[tab,setTab]=useState("educs");const[logTab,setLogTab]=useState("connexions");
+  const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");
   const[newPrenom,setNewPrenom]=useState("");
   const[newNom,setNewNom]=useState("");
   const[newSite,setNewSite]=useState("Fatick");
@@ -610,7 +611,17 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const[editJeune,setEditJeune]=useState(null);
   const educs=users.filter(u=>u.role==="educateur");
   const genLogin=(nom,prenom)=>(nom+prenom).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z]/g,"");
-  const addEduc=()=>{if(!newPrenom.trim()||!newNom.trim())return;const login=genLogin(newNom,newPrenom);const id=Math.max(...users.map(u=>u.id))+1;onUpdateUsers([...users,{id,login,password:"pdsr2026",role:"educateur",name:newPrenom,site:newSite,type:newType,section:newSection,isEducMajeur:newSection==="majeurs",initials:newPrenom.substring(0,2).toUpperCase(),assignedIds:[]}]);setNewPrenom("");setNewNom("");setNewType("jour");setNewSection("mineurs");};
+  const addEduc=()=>{if(!newPrenom.trim()||!newNom.trim())return;const login=genLogin(newNom,newPrenom);const id=Math.max(...users.map(u=>u.id))+1;const isEduc=newRole==="educateur"||newRole==="coordinateur_site";onUpdateUsers([...users,{id,login,password:login+"2026",role:newRole,name:(newPrenom+(newNom?" "+newNom:"")).trim(),site:isEduc?newSite:"Tous",type:newType,section:newSection,isEducMajeur:isEduc&&newSection==="majeurs",initials:(newPrenom.substring(0,1)+(newNom?newNom.substring(0,1):newPrenom.substring(1,2))).toUpperCase(),assignedIds:[],equipe:isEduc?"A":undefined}]);setNewPrenom("");setNewNom("");setNewType("jour");setNewSection("mineurs");setNewRole("educateur");};
+  const resetPwd=(u)=>{const np=(u.login||"compte")+"2026";onUpdateUsers(users.map(x=>x.id===u.id?{...x,password:np}:x));};
+  const setUserField=(id,field,val)=>onUpdateUsers(users.map(x=>x.id===id?{...x,[field]:val}:x));
+  const roleLabel=(r)=>r==="directeur"?"Directeur":r==="chef_service"?"Chef de service":r==="coordinateur_site"?"Coordinateur":"Éducateur";
+  // Domaine 3 — données opérationnelles
+  const opPool=[...(jeunes||[]),...(appMajeurs||MAJEURS)];
+  const opName=(id)=>{const j=opPool.find(x=>x.id===id);return j?(j.prenom+" "+(j.nom||"")):("ID:"+id);};
+  const opSiteOf=(id)=>{const j=opPool.find(x=>x.id===id);return j?j.site:"";};
+  const matchOp=(id,extra)=>{const nm=opName(id).toLowerCase();const st=opSite==="Tous"||opSiteOf(id)===opSite;const q=!opFilter||nm.includes(opFilter.toLowerCase())||(extra||"").toLowerCase().includes(opFilter.toLowerCase());return st&&q;};
+  const SITES=["Fatick","Djilass"];
+  const STATUTS=["actif","sorti","archivé"];
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
   const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:newTelP1,telJeune:newTelJ,emailASE:newEmailASE,dateDebut:newDateD,dateFin:newDateF}]);setNewPrenom("");setNewNom("");setNewTelP1("");setNewTelJ("");setNewEmailASE("");setNewDateD("");setNewDateF("");setShowAddJeune(false);};
@@ -618,19 +629,24 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    <div style={{display:"flex",gap:7,marginBottom:16}}>{[{k:"educs",l:"Éducateurs"},{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"},{k:"creds",l:"Identifiants"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},{k:"sejours",l:"Séjours"}].map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Système",items:[{k:"sejours",l:"Séjours"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"}]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+      <div style={{fontSize:9,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
+    </div>))}
+    <div style={{height:6}}/>
     {tab==="educs"&&<div>
       <div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:14}}>
-        <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 10px",color:C.dark}}>Ajouter un éducateur</h3>
+        <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 10px",color:C.dark}}>Ajouter un compte</h3>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div><label style={{...S.lbl}}>Prénom</label><input style={{...S.inp}} value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom"/></div>
           <div><label style={{...S.lbl}}>Nom</label><input style={{...S.inp}} value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom"/></div>
         </div>
-        <div style={{marginBottom:10}}><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
- <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Type</div><select style={{...S.input}} value={newType} onChange={e=>setNewType(e.target.value)}><option value="jour">Jour</option><option value="nuit">Nuit</option></select></div>
- <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Section</div><select style={{...S.input}} value={newSection} onChange={e=>setNewSection(e.target.value)}><option value="mineurs">Mineurs</option><option value="majeurs">Majeurs</option></select></div>
-        {newPrenom&&newNom&&<div style={{fontSize:11,color:C.mid,marginBottom:8}}>Identifiant généré : <strong>{genLogin(newNom,newPrenom)}</strong> / Mot de passe : <strong>pdsr2026</strong></div>}
-        <button onClick={addEduc} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
+        <div style={{marginBottom:8}}><label style={{...S.lbl}}>Rôle</label><select style={{...S.inp}} value={newRole} onChange={e=>setNewRole(e.target.value)}><option value="educateur">Éducateur</option><option value="coordinateur_site">Coordinateur de site</option><option value="chef_service">Chef de service</option><option value="directeur">Directeur</option></select></div>
+        {(newRole==="educateur"||newRole==="coordinateur_site")&&<><div style={{marginBottom:10}}><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={newSite} onChange={e=>setNewSite(e.target.value)}><option>Fatick</option><option>Djilass</option></select></div>
+ <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Type</div><select style={{...S.inp}} value={newType} onChange={e=>setNewType(e.target.value)}><option value="jour">Jour</option><option value="nuit">Nuit</option></select></div>
+ <div style={{marginTop:6}}><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Section</div><select style={{...S.inp}} value={newSection} onChange={e=>setNewSection(e.target.value)}><option value="mineurs">Mineurs</option><option value="majeurs">Majeurs</option></select></div></>}
+        {newPrenom&&newNom&&<div style={{fontSize:11,color:C.mid,margin:"8px 0"}}>Identifiant généré : <strong>{genLogin(newNom,newPrenom)}</strong> / Mot de passe : <strong>{genLogin(newNom,newPrenom)}2026</strong></div>}
+        <button onClick={addEduc} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter le compte</button>
       </div>
       {educs.map(u=><div key={u.id} style={{...S.card,marginBottom:8,opacity:u.disabled?0.6:1,borderLeft:u.disabled?"3px solid #C62828":"3px solid transparent"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -641,9 +657,24 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
           <button onClick={()=>{const up=users.map(x=>x.id===u.id?{...x,isEducMajeur:!x.isEducMajeur,section:x.isEducMajeur?"mineurs":"majeurs"}:x);onUpdateUsers(up);}} style={{padding:"4px 10px",borderRadius:6,border:u.isEducMajeur?"1px solid #1565C0":"1px solid #9E9E9E",background:u.isEducMajeur?"#E3F2FD":"#F5F5F5",color:u.isEducMajeur?"#1565C0":"#757575",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.isEducMajeur?"Éduc Majeur":"Standard"}</button>
           <button onClick={()=>{const newEq=u.equipe==="A"?"B":"A";const up=users.map(x=>x.id===u.id?{...x,equipe:newEq}:x);onUpdateUsers(up);}} style={{padding:"4px 10px",borderRadius:6,border:u.equipe==="A"?"1px solid #2E7D32":"1px solid #1565C0",background:u.equipe==="A"?"#E8F5E9":"#E3F2FD",color:u.equipe==="A"?"#2E7D32":"#1565C0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Éq. {u.equipe||"?"}</button>
           <button onClick={()=>{const up=users.map(x=>x.id===u.id?{...x,role:x.role==="coordinateur_site"?"educateur":"coordinateur_site"}:x);onUpdateUsers(up);}} style={{padding:"4px 10px",borderRadius:6,border:u.role==="coordinateur_site"?"1px solid #6A1B9A":"1px solid #9E9E9E",background:u.role==="coordinateur_site"?"#F3E5F5":"#F5F5F5",color:u.role==="coordinateur_site"?"#6A1B9A":"#757575",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.role==="coordinateur_site"?"Coordinateur":"Nommer Coord."}</button>
+          <select value={u.site||"Fatick"} onChange={e=>setUserField(u.id,"site",e.target.value)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid "+C.border,background:C.white,color:C.dark,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{SITES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+          <button onClick={()=>resetPwd(u)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="Réinitialise le mot de passe à login+2026">Réinit. MDP</button>
           <button onClick={()=>removeEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
       </div>)}
+      {(()=>{const staff=users.filter(u=>u.role!=="educateur");return staff.length>0&&<div style={{marginTop:18}}>
+        <div style={{fontSize:9,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Comptes encadrants</div>
+        {staff.map(u=><div key={u.id} style={{...S.card,marginBottom:8,padding:"12px 14px",opacity:u.disabled?0.6:1,borderLeft:"3px solid "+C.accent}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{roleLabel(u.role)} · {u.email||u.login}{u.site&&u.site!=="Tous"?" · "+u.site:""}</div></div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"Activer":"Désactiver"}</button>
+              <button onClick={()=>resetPwd(u)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Réinit. MDP</button>
+              {u.role!=="directeur"&&<button onClick={()=>{if(confirm("Supprimer le compte de "+u.name+" ?"))onUpdateUsers(users.filter(x=>x.id!==u.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>}
+            </div>
+          </div>
+        </div>)}
+      </div>;})()}
     </div>}
     {tab==="jeunes"&&<div>
       <div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:14}}>
@@ -672,8 +703,14 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
           <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{j.prenom} {j.nom}</div><div style={{fontSize:11,color:C.light}}>{j.site} · Réf: {[j.referentA,j.referentB,j.referentC,j.referentD].filter(Boolean).join(", ")||"Non assigné"}</div></div>
           <button onClick={()=>removeJeune(j.id)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           {["referentA","referentB","referentC","referentD"].map((rf,i)=><div key={rf} style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}><span style={{fontSize:10,fontWeight:700,color:C.mid,minWidth:32}}>Réf {String.fromCharCode(65+i)}</span><select style={{...S.inp,flex:1,padding:"3px 6px",fontSize:11}} value={j[rf]||""} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,[rf]:e.target.value}:x))}><option value="">--</option>{educs.filter(u=>u.site===j.site).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>)}
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap",marginTop:8,paddingTop:8,borderTop:"1px solid "+C.border}}>
+          <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Statut</div><select value={j.statut||"actif"} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,statut:e.target.value}:x))} style={{padding:"4px 8px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontWeight:700,fontFamily:"inherit",color:j.statut==="actif"||!j.statut?"#2E7D32":j.statut==="sorti"?"#E65100":C.mid,background:C.white}}>{STATUTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+          <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Site</div><select value={j.site} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,site:e.target.value}:x))} style={{padding:"4px 8px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontWeight:700,fontFamily:"inherit",color:C.dark,background:C.white}}>{SITES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+          <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Entrée</div><input type="date" value={j.dateDebut||""} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,dateDebut:e.target.value}:x))} style={{padding:"3px 6px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontFamily:"inherit"}}/></div>
+          <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Sortie</div><input type="date" value={j.dateFin||""} onChange={e=>onUpdateJeunes(jeunes.map(x=>x.id===j.id?{...x,dateFin:e.target.value}:x))} style={{padding:"3px 6px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontFamily:"inherit"}}/></div>
         </div>
       </div>);})}
     </div>}
@@ -703,9 +740,15 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div><div style={{fontWeight:700,color:C.dark}}>{m.prenom} {m.nom||""}</div><div style={{fontSize:11,color:C.light}}>{m.site} | Réf: {[m.referentA,m.referentB,m.referentC,m.referentD].filter(Boolean).join(", ")||"Aucun"}</div></div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              {["referentA","referentB","referentC","referentD"].map((rf,i)=><select key={rf} value={m[rf]||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,rf,e.target.value);}} style={{...S.input,width:100,fontSize:11}}><option value="">{"Réf "+(i+1)}</option>{users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>)}
+              {["referentA","referentB","referentC","referentD"].map((rf,i)=><select key={rf} value={m[rf]||""} onChange={e=>{if(onUpdateMajeurs)onUpdateMajeurs(m.id,rf,e.target.value);}} style={{...S.inp,width:100,fontSize:11}}><option value="">{"Réf "+(i+1)}</option>{users.filter(u=>u.role==="educateur").map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select>)}
               <button onClick={()=>{if(confirm("Supprimer ce majeur ?"))onUpdateMajeurs(null,null,null,(appMajeurs||MAJEURS).filter(x=>x.id!==m.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
             </div>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap",marginTop:8,paddingTop:8,borderTop:"1px solid "+C.border}}>
+            <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Statut</div><select value={m.statut||"actif"} onChange={e=>onUpdateMajeurs(m.id,"statut",e.target.value)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontWeight:700,fontFamily:"inherit",color:m.statut==="actif"||!m.statut?"#2E7D32":m.statut==="sorti"?"#E65100":C.mid,background:C.white}}>{STATUTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Site</div><select value={m.site} onChange={e=>onUpdateMajeurs(m.id,"site",e.target.value)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontWeight:700,fontFamily:"inherit",color:C.dark,background:C.white}}>{SITES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+            <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Entrée</div><input type="date" value={m.dateDebut||""} onChange={e=>onUpdateMajeurs(m.id,"dateDebut",e.target.value)} style={{padding:"3px 6px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontFamily:"inherit"}}/></div>
+            <div><div style={{fontSize:9,fontWeight:800,color:C.light,textTransform:"uppercase",marginBottom:2}}>Sortie</div><input type="date" value={m.dateFin||""} onChange={e=>onUpdateMajeurs(m.id,"dateFin",e.target.value)} style={{padding:"3px 6px",borderRadius:6,border:"1px solid "+C.border,fontSize:11,fontFamily:"inherit"}}/></div>
           </div>
         </div>)}
       </div>}  {tab==="creds"&&<div>
@@ -713,7 +756,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
       {users.map(u=><div key={u.id} style={{...S.card,marginBottom:6,padding:"10px 14px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:700,fontSize:13,color:C.dark}}>{u.name}</div><div style={{fontSize:11,color:C.light}}>{u.role==="educateur"?"Éducateur · "+u.site:u.role==="coordinateur_site"?"Coordinateur · "+u.site:u.role==="chef_service"?"Chef de service":"Directeur"}</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700,color:C.gold}}>{u.email||u.login}</div><div style={{fontSize:11,color:C.mid}}>mdp: {u.password}</div></div>
+          <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700,color:C.gold}}>{u.email||u.login}</div><div style={{display:"flex",alignItems:"center",gap:5,justifyContent:"flex-end",marginTop:3}}><span style={{fontSize:10,color:C.light}}>mdp</span><input value={u.password||""} onChange={e=>setUserField(u.id,"password",e.target.value)} style={{width:120,padding:"3px 7px",border:"1px solid "+C.border,borderRadius:6,fontSize:11,fontFamily:"inherit",color:C.mid}}/></div></div>
         </div>
       </div>)}
     </div>}
@@ -783,6 +826,80 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
         </div>
       </div>}
     </div>}
+
+    {tab.startsWith("op-")&&<div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      <div style={{flex:1,minWidth:160,position:"relative"}}><Search size={15} style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:C.light}}/><input style={{...S.inp,paddingLeft:35}} placeholder="Rechercher (nom, texte…)" value={opFilter} onChange={e=>setOpFilter(e.target.value)}/></div>
+      <select style={{...S.inp,width:"auto"}} value={opSite} onChange={e=>setOpSite(e.target.value)}><option>Tous</option><option>Fatick</option><option>Djilass</option></select>
+    </div>}
+
+    {tab==="op-rapports"&&(()=>{const list=(rapports||[]).filter(r=>matchOp(r.jeuneId,r.observation)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>{list.length} rapport(s) journalier(s). Modification et suppression centralisées — toute suppression est tracée dans les logs.</div>
+      {list.length===0&&<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>}
+      {list.map(r=><div key={r.id} style={{...S.card,marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}><div><span style={{fontWeight:800,fontSize:13,color:C.dark}}>{opName(r.jeuneId)}</span><span style={{fontSize:11,color:C.gold,fontWeight:700,marginLeft:8}}>{fmt(r.date)}</span>{r.author&&<span style={{fontSize:10,color:C.light,marginLeft:6}}>par {r.author}</span>}</div><div style={{display:"flex",gap:5}}>{editRap===r.id?<><button onClick={()=>{onUpdateRapport&&onUpdateRapport(r.id,{observation:editRapText});setEditRap(null);}} style={{padding:"4px 10px",borderRadius:6,border:"none",background:"#2E7D32",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓</button><button onClick={()=>setEditRap(null)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.border,background:C.white,color:C.mid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Annuler</button></>:<><button onClick={()=>{setEditRap(r.id);setEditRapText(r.observation||"");}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Modifier</button><button onClick={()=>{if(confirm("Supprimer ce rapport ?"))onDeleteRapport&&onDeleteRapport(r.id);}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button></>}</div></div>
+        {editRap===r.id?<textarea value={editRapText} onChange={e=>setEditRapText(e.target.value)} rows={3} style={{...S.inp,width:"100%",resize:"vertical",fontSize:12}}/>:<p style={{margin:0,fontSize:12,color:C.mid,lineHeight:1.5}}>{r.observation}</p>}
+      </div>)}
+    </div>);})()}
+
+    {tab==="op-presences"&&(()=>{const pool=opPool.filter(j=>matchOp(j.id)&&j.statut!=="archivé");return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>Correction des présences sur la semaine en cours. Touchez une case pour basculer Présent → Absent → Retard.</div>
+      <div style={{...S.card,padding:"10px 8px",overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:420}}>
+          <thead><tr><th style={{textAlign:"left",padding:6,fontSize:10,color:C.light}}>Bénéficiaire</th>{WEEKDATES.map((d,i)=><th key={d} style={{padding:4,fontSize:10,color:C.light,textAlign:"center"}}>{WD[i]}</th>)}</tr></thead>
+          <tbody>{pool.map(j=>(<tr key={j.id}><td style={{padding:6,fontSize:12,fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{j.prenom} {j.nom}</td>{WEEKDATES.map(date=>{const p=(presences||[]).find(p2=>p2.jeuneId===j.id&&p2.date===date);const st=p?.statut||"Présent";const nx={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<td key={date} style={{padding:3,textAlign:"center"}}><button onClick={()=>onChangeP&&onChangeP(j.id,date,nx[st])} style={{width:30,height:30,borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13}}>{sc2.icon}</button></td>);})}</tr>))}</tbody>
+        </table>
+        {pool.length===0&&<div style={{textAlign:"center",color:C.light,padding:16,fontSize:12}}>Aucun bénéficiaire</div>}
+      </div>
+    </div>);})()}
+
+    {tab==="op-incidents"&&(()=>{const list=(evenements||[]).filter(e=>matchOp(e.jeuneId,(e.titre||"")+" "+(e.description||""))).sort((a,b)=>(b.date||"").localeCompare(a.date||""));const setEig=(id,val)=>onUpdateEvenements&&onUpdateEvenements((evenements||[]).map(x=>x.id===id?{...x,eig:val,eigData:x.eigData||{}}:x));const setEigData=(id,patch)=>onUpdateEvenements&&onUpdateEvenements((evenements||[]).map(x=>x.id===id?{...x,eigData:{...(x.eigData||{}),...patch}}:x));const setNum=(id,v)=>onUpdateEvenements&&onUpdateEvenements((evenements||[]).map(x=>x.id===id?{...x,numeroSuivi:v}:x));return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>Registre consolidé des événements indésirables. Qualifier en EIG, attribuer un n° de suivi, suivre la transmission aux autorités.</div>
+      {list.length===0&&<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>}
+      {list.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+gc.dot}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}><div><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{e.titre}</div><div style={{fontSize:11,color:C.light}}>{opName(e.jeuneId)} · {fmt(e.date)}</div></div><div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}><span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{e.gravite}</span>{e.eig&&<span style={{background:"#C62828",color:"#fff",borderRadius:4,padding:"2px 8px",fontSize:10,fontWeight:800}}>EIG</span>}</div></div>
+        <p style={{margin:"6px 0",fontSize:12,color:C.mid,lineHeight:1.5}}>{e.description}</p>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6,paddingTop:8,borderTop:"1px solid "+C.border}}>
+          <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:10,fontWeight:700,color:C.light}}>N° suivi</span><input defaultValue={e.numeroSuivi||""} onBlur={ev2=>setNum(e.id,ev2.target.value)} placeholder="—" style={{width:90,padding:"3px 6px",border:"1px solid "+C.border,borderRadius:6,fontSize:11,fontFamily:"inherit"}}/></div>
+          <button onClick={()=>setEig(e.id,!e.eig)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:e.eig?"#C62828":"#fff",color:e.eig?"#fff":"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{e.eig?"Retirer EIG":"Qualifier EIG"}</button>
+          {onDeleteEvenement&&<button onClick={()=>{if(confirm("Supprimer cet événement ?"))onDeleteEvenement(e.id);}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>}
+        </div>
+        {e.eig&&<div style={{marginTop:8,padding:"8px 10px",background:"#FFF5F5",border:"1px solid #F3C6C6",borderRadius:8,display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div><div style={{fontSize:9,fontWeight:800,color:"#C62828",marginBottom:2}}>Destinataires</div><input defaultValue={e.eigData?.destinataires||""} onBlur={ev2=>setEigData(e.id,{destinataires:ev2.target.value})} placeholder="CD, PJJ, parquet…" style={{padding:"3px 6px",border:"1px solid "+C.border,borderRadius:6,fontSize:11,fontFamily:"inherit",minWidth:150}}/></div>
+          <div><div style={{fontSize:9,fontWeight:800,color:"#C62828",marginBottom:2}}>Transmission</div><input type="date" value={e.eigData?.dateTransmission||""} onChange={ev2=>setEigData(e.id,{dateTransmission:ev2.target.value})} style={{padding:"3px 6px",border:"1px solid "+C.border,borderRadius:6,fontSize:11,fontFamily:"inherit"}}/></div>
+          <label style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:700,color:"#C62828",cursor:"pointer"}}><input type="checkbox" checked={!!e.eigData?.accuseReception} onChange={ev2=>setEigData(e.id,{accuseReception:ev2.target.checked})} style={{accentColor:"#C62828"}}/>AR reçu</label>
+          <div><div style={{fontSize:9,fontWeight:800,color:"#C62828",marginBottom:2}}>Statut</div><select value={e.eigData?.statutCloture||"En cours"} onChange={ev2=>setEigData(e.id,{statutCloture:ev2.target.value})} style={{padding:"3px 6px",border:"1px solid "+C.border,borderRadius:6,fontSize:11,fontFamily:"inherit"}}><option>En cours</option><option>Clôturé</option></select></div>
+        </div>}
+      </div>);})}
+    </div>);})()}
+
+    {tab==="op-agenda"&&(()=>{const list=(agenda||[]).filter(a=>matchOp(a.jeuneId,(a.jeuneNom||"")+" "+(a.type||"")+" "+(a.notes||""))).sort((a,b)=>(b.date||"").localeCompare(a.date||""));return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>{list.length} rendez-vous. Suppression centralisée.</div>
+      {list.length===0&&<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rendez-vous</div>}
+      {list.map(a=><div key={a.id} style={{...S.card,marginBottom:6,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+        <div><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{a.jeuneId?opName(a.jeuneId):(a.jeuneNom||"—")}</div><div style={{fontSize:11,color:C.light}}>{fmt(a.date)}{a.heure?" · "+a.heure:""}{a.type?" · "+a.type:""}{a.lieu?" · "+a.lieu:""}</div></div>
+        <button onClick={()=>{if(confirm("Supprimer ce RDV ?"))onUpdateAgenda&&onUpdateAgenda((agenda||[]).filter(x=>x.id!==a.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+      </div>)}
+    </div>);})()}
+
+    {tab==="op-projets"&&(()=>{const pool=opPool.filter(j=>matchOp(j.id)&&j.statut!=="archivé");const today2=new Date().toISOString().slice(0,10);return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>Vue d'ensemble des projets personnalisés : objectifs définis et échéances dépassées.</div>
+      <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:380}}>
+          <thead><tr><th style={{textAlign:"left",padding:7,fontSize:10,color:C.light}}>Bénéficiaire</th><th style={{padding:7,fontSize:10,color:C.light}}>Objectifs</th><th style={{padding:7,fontSize:10,color:C.light}}>En retard</th><th style={{padding:7,fontSize:10,color:C.light}}>État</th></tr></thead>
+          <tbody>{pool.map(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));const objs=(p&&p.objectifs)||[];const retard=objs.filter(o=>o.echeance&&o.echeance<today2&&o.statut!=="Atteint").length;const ok=objs.length>0;return(<tr key={j.id}><td style={{padding:7,fontSize:12,fontWeight:700,color:C.dark}}>{j.prenom} {j.nom}</td><td style={{padding:7,textAlign:"center",fontSize:12,color:C.dark}}>{objs.length}</td><td style={{padding:7,textAlign:"center",fontSize:12,fontWeight:700,color:retard>0?"#C62828":C.light}}>{retard||"—"}</td><td style={{padding:7,textAlign:"center"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:ok?(retard>0?"#FFEBEE":"#E8F5E9"):"#F5F5F5",color:ok?(retard>0?"#C62828":"#2E7D32"):C.light}}>{ok?(retard>0?"À revoir":"À jour"):"Aucun projet"}</span></td></tr>);})}</tbody>
+        </table>
+        {pool.length===0&&<div style={{textAlign:"center",color:C.light,padding:16,fontSize:12}}>Aucun bénéficiaire</div>}
+      </div>
+    </div>);})()}
+
+    {tab==="op-rsite"&&(()=>{const list=(rapportsSite||[]).slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));return(<div>
+      <div style={{fontSize:11,color:C.light,marginBottom:10}}>{list.length} rapport(s) de site.</div>
+      {list.length===0&&<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport de site</div>}
+      {list.map(r=><div key={r.id} style={{...S.card,marginBottom:6,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+        <div><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{r.site||"—"}</div><div style={{fontSize:11,color:C.light}}>{fmt(r.date)}{r.auteur?" · "+r.auteur:""}</div></div>
+        <button onClick={()=>{if(confirm("Supprimer ce rapport de site ?"))onUpdateRapportsSite&&onUpdateRapportsSite((rapportsSite||[]).filter(x=>x.id!==r.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
+      </div>)}
+    </div>);})()}
   </div>);
 }
 
@@ -805,18 +922,18 @@ function AgendaPage({agenda,setAgenda,jeunes,majeurs,users,user}){
   {showForm&&<div style={{...S.card,marginBottom:12}}>
    <div style={{fontWeight:700,marginBottom:8}}>{editId?"Modifier le rendez-vous":"Nouveau rendez-vous"}</div>
    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Jeune</div><select value={rdvJeune} onChange={e=>setRdvJeune(e.target.value)} style={{...S.input}}><option value="">Choisir...</option>{allJ.filter(j=>{if(user.role==="educateur"){if(user.isEducMajeur&&j.id<100)return false;if(!user.isEducMajeur&&j.id>=100)return false;if(user.site!=="Tous"&&j.site!==user.site)return false;}return true;}).map(j=><option key={j.id} value={j.id}>{j.prenom} {j.nom||""}</option>)}</select></div>
-    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Type</div><select value={rdvType} onChange={e=>setRdvType(e.target.value)} style={{...S.input}}><option value="educateur">Éducateur</option><option value="referent">Référent ASE</option><option value="medical">Médical</option><option value="juridique">Juridique</option><option value="autre">Autre</option></select></div>
-    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Date</div><input type="date" value={rdvDate} onChange={e=>setRdvDate(e.target.value)} style={{...S.input}}/></div>
-    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Heure</div><input type="time" value={rdvHeure} onChange={e=>setRdvHeure(e.target.value)} style={{...S.input}}/></div>
+    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Jeune</div><select value={rdvJeune} onChange={e=>setRdvJeune(e.target.value)} style={{...S.inp}}><option value="">Choisir...</option>{allJ.filter(j=>{if(user.role==="educateur"){if(user.isEducMajeur&&j.id<100)return false;if(!user.isEducMajeur&&j.id>=100)return false;if(user.site!=="Tous"&&j.site!==user.site)return false;}return true;}).map(j=><option key={j.id} value={j.id}>{j.prenom} {j.nom||""}</option>)}</select></div>
+    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Type</div><select value={rdvType} onChange={e=>setRdvType(e.target.value)} style={{...S.inp}}><option value="educateur">Éducateur</option><option value="referent">Référent ASE</option><option value="medical">Médical</option><option value="juridique">Juridique</option><option value="autre">Autre</option></select></div>
+    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Date</div><input type="date" value={rdvDate} onChange={e=>setRdvDate(e.target.value)} style={{...S.inp}}/></div>
+    <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Heure</div><input type="time" value={rdvHeure} onChange={e=>setRdvHeure(e.target.value)} style={{...S.inp}}/></div>
    </div>
-   <div style={{marginTop:8}}><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Avec qui / Détails</div><input value={rdvWith} onChange={e=>setRdvWith(e.target.value)} placeholder="Nom du professionnel..." style={{...S.input,marginBottom:6}}/></div>
-   <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Description</div><textarea value={rdvDesc} onChange={e=>setRdvDesc(e.target.value)} placeholder="Détails du RDV..." rows={2} style={{...S.input,marginBottom:6}}/></div>
+   <div style={{marginTop:8}}><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Avec qui / Détails</div><input value={rdvWith} onChange={e=>setRdvWith(e.target.value)} placeholder="Nom du professionnel..." style={{...S.inp,marginBottom:6}}/></div>
+   <div><div style={{fontSize:11,fontWeight:700,color:C.light,marginBottom:4}}>Description</div><textarea value={rdvDesc} onChange={e=>setRdvDesc(e.target.value)} placeholder="Détails du RDV..." rows={2} style={{...S.inp,marginBottom:6}}/></div>
    <div style={{display:"flex",gap:6}}><button onClick={addRdv} style={{...S.btn}}>Valider</button><button onClick={()=>{setShowForm(false);setEditId(null);}} style={{...S.btnO}}>Annuler</button></div>
   </div>}
   {sortedAgenda.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rendez-vous</div>:sortedAgenda.map(r=><div key={r.id} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+(typeColors[r.type]||"#ccc")}}>
    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-    <div><div style={{fontWeight:700,color:C.dark}}>{getJeuneName(r.jeuneId)}</div><div style={{fontSize:12,color:C.light}}>{r.date} à {r.heure} — <span style={{color:typeColors[r.type]||"#999",fontWeight:600}}>{r.type}</span>{r.with?" — "+r.with:""}</div>{r.description&&<div style={{fontSize:12,color:C.mid,marginTop:4}}>{r.description}</div>}{(user.role==="directeur"||user.role==="chef_service")&&<div style={{marginTop:6,borderTop:"1px solid #eee",paddingTop:6}}><div style={{fontSize:11,fontWeight:700,color:C.primary,marginBottom:3}}>CR du RDV</div><textarea value={r.cr||""} onChange={e=>{setAgenda(p=>p.map(a=>a.id===r.id?{...a,cr:e.target.value}:a));}} placeholder="Saisir le compte-rendu..." rows={2} style={{...S.input,fontSize:11,width:"100%"}}/></div>}</div>
+    <div><div style={{fontWeight:700,color:C.dark}}>{getJeuneName(r.jeuneId)}</div><div style={{fontSize:12,color:C.light}}>{r.date} à {r.heure} — <span style={{color:typeColors[r.type]||"#999",fontWeight:600}}>{r.type}</span>{r.with?" — "+r.with:""}</div>{r.description&&<div style={{fontSize:12,color:C.mid,marginTop:4}}>{r.description}</div>}{(user.role==="directeur"||user.role==="chef_service")&&<div style={{marginTop:6,borderTop:"1px solid #eee",paddingTop:6}}><div style={{fontSize:11,fontWeight:700,color:C.primary,marginBottom:3}}>CR du RDV</div><textarea value={r.cr||""} onChange={e=>{setAgenda(p=>p.map(a=>a.id===r.id?{...a,cr:e.target.value}:a));}} placeholder="Saisir le compte-rendu..." rows={2} style={{...S.inp,fontSize:11,width:"100%"}}/></div>}</div>
     <div style={{display:"flex",flexDirection:"column",gap:4}}>{user.role==="chef_service"&&<button onClick={()=>delRdv(r.id)} style={{background:"none",border:"none",color:"#e74c3c",cursor:"pointer",fontSize:14}} title="Supprimer">🗑️</button>}<button onClick={()=>{setEditId(r.id);setRdvJeune(String(r.jeuneId));setRdvDate(r.date);setRdvHeure(r.heure||"09:00");setRdvType(r.type||"educateur");setRdvDesc(r.description||"");setRdvWith(r.with||"");setShowForm(true);}} style={{background:"none",border:"none",color:C.primary,cursor:"pointer",fontSize:14}} title="Modifier">✏️</button></div>
    </div>
   </div>)}
@@ -1076,7 +1193,7 @@ useEffect(()=>{(async()=>{loadFb(await fbGet("data"));})();},[]);
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={user}/>}
         {page==="rapport-site"&&(user.role==="coordinateur_site"||user.role==="chef_service"||user.role==="directeur")&&<RapportSite user={user} rapportsSite={rapportsSite} onSave={r=>{setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<ExportPage sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to)=>{setRapports(p=>p.filter(r=>r.date<from||r.date>to));setEvenements(p=>p.filter(e=>e.date<from||e.date>to));setAgenda(p=>p.filter(a=>a.date<from||a.date>to));}}/>}
-      {page==="admin"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<Admin rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>setLoginLogs([])} onPurgeDeletionLogs={()=>setDeletionLogs([])}/>}
+      {page==="admin"&&(user.role==="directeur"||user.role==="chef_service"||user.role==="coordinateur_site")&&<Admin rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>setLoginLogs([])} onPurgeDeletionLogs={()=>setDeletionLogs([])} presences={presences} onChangeP={changeP} agenda={agenda} onUpdateAgenda={setAgenda} projets={projets} rapportsSite={rapportsSite} onUpdateRapportsSite={setRapportsSite} onDeleteRapport={delR} onUpdateRapport={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} onDeleteEvenement={delE} onUpdateEvenements={setEvenements}/>}
         {page==="rapport-hebdo"&&<RapportHebdo user={user} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
         {page==="projets"&&<ProjetsPersonnalises user={user} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets}/>}
       {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={user.site} user={user} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
