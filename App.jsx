@@ -617,8 +617,8 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const roleLabel=(r)=>r==="directeur"?"Directeur":r==="chef_service"?"Chef de service":r==="coordinateur_site"?"Coordinateur":"Éducateur";
   // Domaine 3 — données opérationnelles
   const opPool=[...(jeunes||[]),...(appMajeurs||MAJEURS)];
-  const opName=(id)=>{const j=opPool.find(x=>x.id===id);return j?(j.prenom+" "+(j.nom||"")):("ID:"+id);};
-  const opSiteOf=(id)=>{const j=opPool.find(x=>x.id===id);return j?j.site:"";};
+  const opName=(id)=>{const j=opPool.find(x=>String(x.id)===String(id));return j?(j.prenom+" "+(j.nom||"")):("ID:"+id);};
+  const opSiteOf=(id)=>{const j=opPool.find(x=>String(x.id)===String(id));return j?j.site:"";};
   const matchOp=(id,extra)=>{const nm=opName(id).toLowerCase();const st=opSite==="Tous"||opSiteOf(id)===opSite;const q=!opFilter||nm.includes(opFilter.toLowerCase())||(extra||"").toLowerCase().includes(opFilter.toLowerCase());return st&&q;};
   const SITES=["Fatick","Djilass"];
   const STATUTS=["actif","sorti","archivé"];
