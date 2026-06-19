@@ -610,6 +610,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");const[editRapDate,setEditRapDate]=useState("");const[editRapJeune,setEditRapJeune]=useState("");
   const[integrity,setIntegrity]=useState(null);const[viewAsId,setViewAsId]=useState("");
   const[statSite,setStatSite]=useState("Tous");const[fiche360Id,setFiche360Id]=useState("");const[clotureLabel,setClotureLabel]=useState("");
+  const[srMode,setSrMode]=useState("semaine");const[srWeek,setSrWeek]=useState("");const[srJeune,setSrJeune]=useState("");const[srSite,setSrSite]=useState("Tous");
   const ec=etabConfig||{};
   const[newPrenom,setNewPrenom]=useState("");
   const[newNom,setNewNom]=useState("");
@@ -646,7 +647,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"sejours",l:"Séjours"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"sejours",l:"Séjours"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:9,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1008,6 +1009,44 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
       </div>
       <div style={{fontSize:11,color:C.mid,marginTop:10,padding:"10px 12px",background:C.goldLight,borderRadius:8,border:"1px solid "+C.border}}>ℹ️ La propagation automatique de ces valeurs dans tous les modèles de documents (en-têtes, signatures) est une étape distincte : aujourd'hui certains documents conservent encore les valeurs d'origine codées. Dis-le-moi quand tu veux que je rebranche les générateurs sur cette config.</div>
     </div>);})()}
+
+    {tab==="suivi-rapports"&&(()=>{
+      const wkStart=(ds)=>{if(!ds)return"";const d=new Date(ds+"T00:00:00");const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return localDay(d);};
+      const wkLabel=(ws)=>{if(!ws)return"—";const d=new Date(ws+"T00:00:00");const e=new Date(d);e.setDate(d.getDate()+6);const f=x=>("0"+x.getDate()).slice(-2)+"/"+("0"+(x.getMonth()+1)).slice(-2);return f(d)+" → "+f(e);};
+      const TYPES=[["journee","Journée"],["rdv_parents","RDV parents"],["rdv_exterieur","RDV ext."]];
+      const pool=opPool.filter(j=>srSite==="Tous"||j.site===srSite);const ids=new Set(pool.map(j=>j.id));
+      const rs=(rapports||[]).filter(r=>ids.has(r.jeuneId));
+      const weeks=[...new Set(rs.map(r=>wkStart(r.date)).filter(Boolean))].sort().reverse();
+      const curWeek=srWeek||weeks[0]||"";const curJeune=srJeune||(pool[0]&&pool[0].id)||"";
+      const countBy=(arr)=>{const o={total:arr.length};TYPES.forEach(([k])=>o[k]=arr.filter(r=>(r.typeContact||"journee")===k).length);return o;};
+      const exp=(rows,head,fname)=>{const bom="\ufeff";const csv=[head,...rows].map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/"/g,'""')+'"').join(";")).join("\n");const b=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);};
+      const cell={padding:"7px 6px",fontSize:12,textAlign:"center",borderBottom:"1px solid "+C.border};const th={padding:"7px 6px",fontSize:10,fontWeight:800,color:C.light,textTransform:"uppercase"};
+      return(<div>
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+          {[["semaine","Par semaine"],["matrice","Toutes les semaines"],["jeune","Par jeune"]].map(([k,l])=><button key={k} onClick={()=>setSrMode(k)} style={{padding:"6px 14px",borderRadius:20,border:"1.5px solid "+(srMode===k?C.gold:C.border),background:srMode===k?C.gold:C.white,color:srMode===k?"#fff":C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}
+          <select value={srSite} onChange={e=>setSrSite(e.target.value)} style={{...S.inp,width:"auto",marginLeft:"auto"}}><option>Tous</option><option>Fatick</option><option>Djilass</option></select>
+        </div>
+        {srMode==="semaine"&&<div>
+          <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+            <select value={curWeek} onChange={e=>setSrWeek(e.target.value)} style={{...S.inp,width:"auto"}}>{weeks.length===0&&<option value="">—</option>}{weeks.map(w=><option key={w} value={w}>Semaine du {wkLabel(w)}</option>)}</select>
+            <button onClick={()=>{const rows=pool.map(j=>{const c=countBy(rs.filter(r=>r.jeuneId===j.id&&wkStart(r.date)===curWeek));return[j.prenom+" "+(j.nom||""),c.total,c.journee,c.rdv_parents,c.rdv_exterieur];});exp(rows,["Jeune","Total","Journée","RDV parents","RDV ext."],"suivi_rapports_semaine_"+curWeek+".csv");}} style={{...S.btnO,marginLeft:"auto"}}><Download size={14}/>Export CSV</button>
+          </div>
+          <div style={{...S.card,padding:"4px 6px",overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:380}}><thead><tr><th style={{...th,textAlign:"left"}}>Jeune</th><th style={th}>Total</th>{TYPES.map(([k,l])=><th key={k} style={th}>{l}</th>)}</tr></thead><tbody>{pool.map(j=>{const c=countBy(rs.filter(r=>r.jeuneId===j.id&&wkStart(r.date)===curWeek));return(<tr key={j.id}><td style={{...cell,textAlign:"left",fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{j.prenom} {j.nom}</td><td style={{...cell,fontWeight:800,color:c.total===0?"#C62828":C.dark}}>{c.total}</td>{TYPES.map(([k])=><td key={k} style={{...cell,color:C.mid}}>{c[k]||"—"}</td>)}</tr>);})}</tbody></table></div>
+        </div>}
+        {srMode==="jeune"&&<div>
+          <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+            <select value={curJeune} onChange={e=>setSrJeune(e.target.value)} style={{...S.inp,width:"auto"}}>{pool.map(j=><option key={j.id} value={j.id}>{j.prenom} {j.nom}</option>)}</select>
+            <button onClick={()=>{const rows=weeks.map(w=>{const c=countBy(rs.filter(r=>String(r.jeuneId)===String(curJeune)&&wkStart(r.date)===w));return["Semaine du "+wkLabel(w),c.total,c.journee,c.rdv_parents,c.rdv_exterieur];});exp(rows,["Semaine","Total","Journée","RDV parents","RDV ext."],"suivi_rapports_jeune.csv");}} style={{...S.btnO,marginLeft:"auto"}}><Download size={14}/>Export CSV</button>
+          </div>
+          <div style={{...S.card,padding:"4px 6px",overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:360}}><thead><tr><th style={{...th,textAlign:"left"}}>Semaine</th><th style={th}>Total</th>{TYPES.map(([k,l])=><th key={k} style={th}>{l}</th>)}</tr></thead><tbody>{weeks.map(w=>{const c=countBy(rs.filter(r=>String(r.jeuneId)===String(curJeune)&&wkStart(r.date)===w));return(<tr key={w}><td style={{...cell,textAlign:"left",fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{wkLabel(w)}</td><td style={{...cell,fontWeight:800,color:c.total===0?"#C62828":C.dark}}>{c.total}</td>{TYPES.map(([k])=><td key={k} style={{...cell,color:C.mid}}>{c[k]||"—"}</td>)}</tr>);})}{weeks.length===0&&<tr><td colSpan={5} style={{...cell,color:C.light}}>Aucun rapport</td></tr>}</tbody></table></div>
+        </div>}
+        {srMode==="matrice"&&<div>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}><button onClick={()=>{const head=["Jeune",...weeks.map(w=>wkLabel(w)),"Total"];const rows=pool.map(j=>{const per=weeks.map(w=>rs.filter(r=>r.jeuneId===j.id&&wkStart(r.date)===w).length);return[j.prenom+" "+(j.nom||""),...per,per.reduce((a,b)=>a+b,0)];});exp(rows,head,"suivi_rapports_matrice.csv");}} style={{...S.btnO}}><Download size={14}/>Export CSV</button></div>
+          <div style={{...S.card,padding:"4px 6px",overflowX:"auto"}}><table style={{borderCollapse:"collapse",minWidth:Math.max(360,160+weeks.length*60)}}><thead><tr><th style={{...th,textAlign:"left"}}>Jeune</th>{weeks.map(w=><th key={w} style={th}>{wkLabel(w)}</th>)}<th style={th}>Total</th></tr></thead><tbody>{pool.map(j=>{const per=weeks.map(w=>rs.filter(r=>r.jeuneId===j.id&&wkStart(r.date)===w).length);const tot=per.reduce((a,b)=>a+b,0);return(<tr key={j.id}><td style={{...cell,textAlign:"left",fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{j.prenom} {j.nom}</td>{per.map((n,i)=><td key={i} style={{...cell,color:n===0?C.sable:C.dark,fontWeight:n>0?700:400}}>{n||"·"}</td>)}<td style={{...cell,fontWeight:800,color:C.gold}}>{tot}</td></tr>);})}{weeks.length===0&&<tr><td style={{...cell,color:C.light}}>Aucun rapport</td></tr>}</tbody></table></div>
+          <div style={{fontSize:10,color:C.light,marginTop:6}}>Chaque case = total de rapports cette semaine-là. Le détail par type est dans « Par semaine » et « Par jeune ».</div>
+        </div>}
+      </div>);
+    })()}
 
     {tab==="maintenance"&&isAdmin&&(()=>{const educList=users.filter(u=>u.role==="educateur"||u.role==="coordinateur_site");return(<div>
       <div style={{...S.card,borderLeft:"4px solid "+C.accent,marginBottom:14}}>
