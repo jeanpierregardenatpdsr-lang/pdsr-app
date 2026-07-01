@@ -1437,7 +1437,8 @@ useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;i
   const mergedA=union(agenda,remote&&remote.agenda,"agenda");
   const pm={};const addP=(arr)=>{(Array.isArray(arr)?arr:[]).forEach(p=>{if(p&&p.jeuneId!=null&&p.date)pm[p.jeuneId+"|"+p.date]=p;});};addP(remote&&remote.presences);addP(Array.isArray(presences)?presences:[]);const mergedP=Array.isArray(presences)&&!Array.isArray(remote&&remote.presences)?presences:Object.values(pm);
   const mergedDL=union(deletionLogs,remote&&remote.deletionLogs,"__none__");
-  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:appUsers,agenda:mergedA,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
+  const mergedU=(()=>{const m={};(Array.isArray(remote&&remote.users)?remote.users:remote&&remote.users?Object.values(remote.users):[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(Array.isArray(appUsers)?appUsers:[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});return Object.values(m);})();
+  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:mergedU,agenda:mergedA,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
   const dataVide=mergedR.length===0&&mergedE.length===0;
   if(dataVide&&fbWasNonEmpty.current){console.warn("[PDSR] Envoi vide bloqué.");return;}
   if(mergedR.length||mergedE.length)fbWasNonEmpty.current=true;
