@@ -101,7 +101,7 @@ function Topbar({title,onMenu,onBack}){
 function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs}){
   const isMajEduc=user.role==="educateur"&&user.isEducMajeur;
   const pool=isMajEduc?(majeurs||MAJEURS):(jeunes||JEUNES);
-  const vj=user.role==="educateur"?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
+  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
   const todayP=presences.filter(p=>p.date===today);
   const myPresents=todayP.filter(p=>p.statut==="Présent"&&vj.some(j=>j.id===p.jeuneId)).length;
   const myRapports=(rapports||[]).filter(r=>r.date===today&&vj.some(j=>j.id===r.jeuneId)).length;
@@ -136,7 +136,7 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
 
 function JeunesList({user,jeunes,presences,onSelect,onNav,onUpdateJeune}){
   const[q,setQ]=useState(""),[ site,setSite]=useState("Tous");
-  const vj=user.role==="educateur"?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
+  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
   const vis=vj.filter(j=>{const m=`${j.prenom} ${j.nom}`.toLowerCase().includes(q.toLowerCase());const s=site==="Tous"||j.site===site;return m&&s;});
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <div style={{display:"flex",gap:8,marginBottom:14}}>
@@ -193,7 +193,7 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
 }
 
 function Rapports({user,rapports,onSave,onDelete,onUpdate,onPatch,majeurs,jeunes}){
-  const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];const vj=user.role==="educateur"?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
+  const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];const vj=(user.role==="educateur"||user.role==="coordinateur_site")?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[date,setDate]=useState(today);
   const[obs,setObs]=useState("");
@@ -234,7 +234,7 @@ function Rapports({user,rapports,onSave,onDelete,onUpdate,onPatch,majeurs,jeunes
 }
 
 function Presences({user,presences,onCP}){
-  const vj=user.role==="educateur"?JEUNES.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site)):JEUNES;
+  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?JEUNES.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site)):JEUNES;
   const[site,setSite]=useState("Tous");
   const vis=site==="Tous"?vj:vj.filter(j=>j.site===site);
   const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};
@@ -253,7 +253,7 @@ function Presences({user,presences,onCP}){
 }
 
 function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll}){
-  const allPool=[...JEUNES,...(majeurs||MAJEURS)];const vj=user.role==="educateur"?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
+  const allPool=[...JEUNES,...(majeurs||MAJEURS)];const vj=(user.role==="educateur"||user.role==="coordinateur_site")?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[titre,setTitre]=useState(""),[ desc,setDesc]=useState(""),[ grav,setGrav]=useState("Léger"),[ date2,setDate2]=useState(today),[categ,setCateg]=useState("jeune"),[typeEv,setTypeEv]=useState("incident");
   const[eig,setEig]=useState(false),[ eigOpen,setEigOpen]=useState(null);
@@ -294,7 +294,7 @@ function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll}){
 
 function RapportHebdo({user,rapports,presences,evenements,jeunes,majeurs,onSaveHebdo,sejourConfig}){
   const allJeunes=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];
-  const mj=user.role==="educateur"?allJeunes.filter(j=>user.site==="Tous"||j.site===user.site):allJeunes;
+  const mj=user.role==="coordinateur_site"?allJeunes.filter(j=>(user.site==="Tous"||j.site===user.site)&&(user.isEducMajeur?j.id>=100:j.id<100)):user.role==="educateur"?allJeunes.filter(j=>user.site==="Tous"||j.site===user.site):allJeunes;
   const[site,setSite]=useState("Djilass");
   const siteJeunes=mj.filter(j=>j.site===site);
   const[selJeune,setSelJeune]=useState("");
@@ -506,7 +506,7 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
 
 function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate}){
   const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];
-  const vj=user.role==="educateur"?allPool.filter(j=>(user.site==="Tous"||j.site===user.site)&&(user.isEducMajeur?j.id>=100:j.id<100)):allPool;
+  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?allPool.filter(j=>(user.site==="Tous"||j.site===user.site)&&(user.isEducMajeur?j.id>=100:j.id<100)):allPool;
   const[siteF,setSiteF]=useState("Tous");
   const[selId,setSelId]=useState("");
   const vis=vj.filter(j=>(siteF==="Tous"||j.site===siteF)&&j.statut!=="inactif");
