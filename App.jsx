@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak, HeadingLevel } from "docx";
-import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download } from "lucide-react";
+import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download, Package, Wrench } from "lucide-react";
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
@@ -61,7 +61,7 @@ function Login({onLogin,users}){
   </div>);
 }
 
-const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"projets",label:"Projets personnalisés",icon:FileText},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar},{id:"rapport-site",label:"Rapport de site",icon:FileText},{id:"espace-rh",label:"Espace éducateur",icon:FileText}];
+const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"projets",label:"Projets personnalisés",icon:FileText},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar},{id:"rapport-site",label:"Rapport de site",icon:FileText},{id:"intendance",label:"Intendance",icon:Package},{id:"pres-educ",label:"Présences éducateurs",icon:Calendar},{id:"espace-rh",label:"Espace éducateur",icon:FileText}];
 
 function Sidebar({page,onNav,user,onLogout,open,onClose}){
   return(<>
@@ -83,7 +83,7 @@ function Sidebar({page,onNav,user,onLogout,open,onClose}){
         </div>
       </div>
       <nav style={{flex:1,padding:"10px 10px"}}>
-        {NAV.filter(n=>{if(n.id==="admin"&&user.role!=="directeur"&&user.role!=="chef_service")return false;if(n.id==="export"&&user.role!=="directeur"&&user.role!=="chef_service"&&user.role!=="coordinateur_site")return false;if(user.isEducMajeur&&(n.id==="jeunes"||n.id==="presences"||n.id==="planning"))return false;if(n.id==="rapport-site"&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(user.role==="educateur"&&!user.isEducMajeur&&n.id==="majeurs")return false;return true;}).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 14px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:3,background:active?"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)":"transparent",color:active?C.sable:"rgba(255,255,255,0.55)",textAlign:"left",transition:"all 0.15s ease",letterSpacing:"0.01em"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
+        {NAV.filter(n=>{if(n.id==="admin"&&user.role!=="directeur"&&user.role!=="chef_service")return false;if(n.id==="export"&&user.role!=="directeur"&&user.role!=="chef_service"&&user.role!=="coordinateur_site")return false;if(user.isEducMajeur&&(n.id==="jeunes"||n.id==="presences"||n.id==="planning"))return false;if(n.id==="rapport-site"&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if((n.id==="intendance"||n.id==="pres-educ")&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(user.role==="educateur"&&!user.isEducMajeur&&n.id==="majeurs")return false;return true;}).map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 14px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:active?700:500,fontSize:13,marginBottom:3,background:active?"linear-gradient(135deg,"+C.gold+"33,"+C.gold+"11)":"transparent",color:active?C.sable:"rgba(255,255,255,0.55)",textAlign:"left",transition:"all 0.15s ease",letterSpacing:"0.01em"}}><Icon size={17}/>{item.label}{active&&<ChevronRight size={13} style={{marginLeft:"auto"}}/>}</button>);})}
       </nav>
       <div style={{padding:"10px 10px 22px"}}><button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"10px 13px",borderRadius:9,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13,background:"rgba(244,67,54,0.12)",color:"#EF5350"}}><LogOut size={17}/>Déconnexion</button></div>
     </aside>
@@ -1356,6 +1356,163 @@ function SignaturePad({onValidate,onCancel}){
   </div>);
 }
 
+function Intendance({user,items,onSave,onDelete}){
+  const isChef=user.role==="chef_service"||user.role==="directeur";
+  const[tab,setTab]=useState("besoins");
+  const[site,setSite]=useState(isChef?"Tous":user.site);
+  const mySite=isChef?site:user.site;
+  const[cat,setCat]=useState("Produits d'hygiène");const[desc,setDesc]=useState("");const[qte,setQte]=useState("");const[dLiv,setDLiv]=useState("");const[err,setErr]=useState("");
+  const[objR,setObjR]=useState("");const[descR,setDescR]=useState("");const[urg,setUrg]=useState("Normale");
+  const CATS=["Produits d'hygiène","Poches d'eau","Régie","Alimentation","Matériel pédagogique","Autre besoin"];
+  const BST={en_attente:{l:"En attente",bg:"#FFF3E0",c:"#E65100"},validee:{l:"Validée",bg:"#E3F2FD",c:"#1565C0"},livree:{l:"Livrée",bg:"#E8F5E9",c:"#2E7D32"},refusee:{l:"Refusée",bg:"#FFEBEE",c:"#C62828"}};
+  const RST={a_reparer:{l:"À réparer",bg:"#FFEBEE",c:"#C62828"},en_cours:{l:"En cours",bg:"#FFF3E0",c:"#E65100"},repare:{l:"Réparé",bg:"#E8F5E9",c:"#2E7D32"}};
+  const list=(items||[]).filter(i=>i&&(mySite==="Tous"||i.site===mySite));
+  const besoins=list.filter(i=>i.type==="besoin").sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const reps=list.filter(i=>i.type==="reparation").sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const submitBesoin=()=>{
+    setErr("");
+    if(!desc.trim()){setErr("Décrivez le besoin.");return;}
+    if(!dLiv){setErr("Indiquez la date de livraison souhaitée.");return;}
+    const diff=new Date(dLiv+"T00:00:00").getTime()-Date.now();
+    if(diff<48*3600*1000){setErr("Anticipation insuffisante : la date de livraison doit être au moins 48 h à l'avance.");return;}
+    const siteVal=isChef?(site==="Tous"?"Fatick":site):user.site;
+    onSave({id:"int_"+Date.now(),type:"besoin",site:siteVal,categorie:cat,description:desc.trim(),quantite:qte.trim(),dateLivraison:dLiv,statut:"en_attente",auteur:user.name,createdAt:new Date().toISOString()});
+    setDesc("");setQte("");setDLiv("");
+  };
+  const submitRep=()=>{
+    setErr("");
+    if(!objR.trim()){setErr("Indiquez l'objet à réparer.");return;}
+    const siteVal=isChef?(site==="Tous"?"Fatick":site):user.site;
+    onSave({id:"int_"+Date.now(),type:"reparation",site:siteVal,objet:objR.trim(),description:descR.trim(),urgence:urg,statut:"a_reparer",auteur:user.name,createdAt:new Date().toISOString()});
+    setObjR("");setDescR("");setUrg("Normale");
+  };
+  const chip=(st,map)=><span style={{background:map[st]?.bg||"#eee",color:map[st]?.c||"#555",fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:8}}>{map[st]?.l||st}</span>;
+  const minDate=new Date(Date.now()+48*3600*1000).toISOString().slice(0,10);
+  return(<div>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <h2 style={{margin:0,fontSize:20,color:C.dark,fontWeight:800}}>Intendance</h2>
+      {isChef&&<select value={site} onChange={e=>setSite(e.target.value)} style={{...S.inp,width:"auto",padding:"8px 12px"}}><option>Tous</option><option>Djilass</option><option>Fatick</option></select>}
+      {!isChef&&<span style={{fontSize:13,color:C.light,fontWeight:700}}>Site : {user.site}</span>}
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:14}}>
+      <button onClick={()=>setTab("besoins")} style={{...(tab==="besoins"?S.btnP:S.btnS)}}><Package size={16}/>Besoins ({besoins.length})</button>
+      <button onClick={()=>setTab("reparations")} style={{...(tab==="reparations"?S.btnP:S.btnS)}}><Wrench size={16}/>Réparations ({reps.length})</button>
+    </div>
+    {err&&<div style={{background:"#FFEBEE",color:"#C62828",fontWeight:700,fontSize:13,padding:"10px 14px",borderRadius:10,marginBottom:12}}>{err}</div>}
+    {tab==="besoins"&&<div>
+      <div style={S.card}>
+        <div style={{fontWeight:800,color:C.dark,fontSize:15,marginBottom:12}}>Nouvelle demande</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div><label style={S.lbl}>Catégorie</label><select value={cat} onChange={e=>setCat(e.target.value)} style={S.inp}>{CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+          <div><label style={S.lbl}>Quantité</label><input value={qte} onChange={e=>setQte(e.target.value)} placeholder="ex : 20 poches, 5 bidons…" style={S.inp}/></div>
+        </div>
+        <div style={{marginBottom:10}}><label style={S.lbl}>Description du besoin</label><textarea value={desc} onChange={e=>setDesc(e.target.value)} rows={3} style={{...S.inp,resize:"vertical"}} placeholder="Détaillez le besoin (produits, montant régie, etc.)"/></div>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div><label style={S.lbl}>Date de livraison souhaitée (min. 48 h)</label><input type="date" min={minDate} value={dLiv} onChange={e=>setDLiv(e.target.value)} style={S.inp}/></div>
+          <button onClick={submitBesoin} style={S.btnP}><Plus size={16}/>Envoyer la demande</button>
+        </div>
+      </div>
+      {besoins.map(b=><div key={b.id} style={{...S.card,padding:"14px 18px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><span style={{fontWeight:800,color:C.dark,fontSize:14}}>{b.categorie}</span>{chip(b.statut,BST)}<span style={{fontSize:11,color:C.light,fontWeight:700}}>{b.site}</span></div>
+            <div style={{fontSize:13,color:C.mid,marginBottom:4}}>{b.description}{b.quantite?" — "+b.quantite:""}</div>
+            <div style={{fontSize:11,color:C.light}}>Livraison souhaitée : <b>{b.dateLivraison}</b> · demandé par {b.auteur} le {(b.createdAt||"").slice(0,10)}</div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {isChef&&b.statut==="en_attente"&&<><button onClick={()=>onSave({...b,statut:"validee"})} style={{...S.btnS,padding:"7px 12px",fontSize:12,color:"#1565C0",borderColor:"#1565C0"}}>Valider</button><button onClick={()=>onSave({...b,statut:"refusee"})} style={{...S.btnS,padding:"7px 12px",fontSize:12,color:"#C62828",borderColor:"#C62828"}}>Refuser</button></>}
+            {isChef&&b.statut==="validee"&&<button onClick={()=>onSave({...b,statut:"livree"})} style={{...S.btnS,padding:"7px 12px",fontSize:12,color:"#2E7D32",borderColor:"#2E7D32"}}>Marquer livrée</button>}
+            {(isChef||b.auteur===user.name)&&<button onClick={()=>{if(confirm("Supprimer cette demande ?"))onDelete(b.id);}} style={{...S.btnS,padding:"7px 12px",fontSize:12}}>Suppr.</button>}
+          </div>
+        </div>
+      </div>)}
+      {besoins.length===0&&<div style={{textAlign:"center",color:C.light,fontSize:13,padding:20}}>Aucune demande pour l'instant.</div>}
+    </div>}
+    {tab==="reparations"&&<div>
+      <div style={S.card}>
+        <div style={{fontWeight:800,color:C.dark,fontSize:15,marginBottom:12}}>Signaler une réparation</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div><label style={S.lbl}>Objet</label><input value={objR} onChange={e=>setObjR(e.target.value)} placeholder="ex : toilettes bloc B, lit chambre 4…" style={S.inp}/></div>
+          <div><label style={S.lbl}>Urgence</label><select value={urg} onChange={e=>setUrg(e.target.value)} style={S.inp}><option>Normale</option><option>Urgente</option></select></div>
+        </div>
+        <div style={{marginBottom:10}}><label style={S.lbl}>Détail</label><textarea value={descR} onChange={e=>setDescR(e.target.value)} rows={2} style={{...S.inp,resize:"vertical"}} placeholder="Décrivez le problème…"/></div>
+        <button onClick={submitRep} style={S.btnP}><Plus size={16}/>Signaler</button>
+      </div>
+      {reps.map(r=><div key={r.id} style={{...S.card,padding:"14px 18px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><span style={{fontWeight:800,color:C.dark,fontSize:14}}>{r.objet}</span>{chip(r.statut,RST)}{r.urgence==="Urgente"&&<span style={{background:"#C62828",color:"#fff",fontSize:10,fontWeight:900,padding:"2px 8px",borderRadius:6}}>URGENT</span>}<span style={{fontSize:11,color:C.light,fontWeight:700}}>{r.site}</span></div>
+            {r.description&&<div style={{fontSize:13,color:C.mid,marginBottom:4}}>{r.description}</div>}
+            <div style={{fontSize:11,color:C.light}}>Signalé par {r.auteur} le {(r.createdAt||"").slice(0,10)}</div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {r.statut==="a_reparer"&&<button onClick={()=>onSave({...r,statut:"en_cours"})} style={{...S.btnS,padding:"7px 12px",fontSize:12,color:"#E65100",borderColor:"#E65100"}}>En cours</button>}
+            {r.statut!=="repare"&&<button onClick={()=>onSave({...r,statut:"repare"})} style={{...S.btnS,padding:"7px 12px",fontSize:12,color:"#2E7D32",borderColor:"#2E7D32"}}>Réparé</button>}
+            {(isChef||r.auteur===user.name)&&<button onClick={()=>{if(confirm("Supprimer ce signalement ?"))onDelete(r.id);}} style={{...S.btnS,padding:"7px 12px",fontSize:12}}>Suppr.</button>}
+          </div>
+        </div>
+      </div>)}
+      {reps.length===0&&<div style={{textAlign:"center",color:C.light,fontSize:13,padding:20}}>Rien à réparer pour l'instant.</div>}
+    </div>}
+  </div>);
+}
+function PresEduc({user,users,entries,onSave,onDelete}){
+  const isChef=user.role==="chef_service"||user.role==="directeur";
+  const today=new Date().toISOString().slice(0,10);
+  const[date,setDate]=useState(today);
+  const[site,setSite]=useState(isChef?"Fatick":user.site);
+  const mySite=isChef?site:user.site;
+  const educs=(users||[]).filter(u=>u&&u.role==="educateur"&&!u.disabled&&(u.site===mySite||u.site==="Tous"));
+  const STATUTS=["Présent","Absent","Maladie","Retard","Congé","Repos"];
+  const SC={"Présent":"#2E7D32","Absent":"#C62828","Maladie":"#E65100","Retard":"#F9A825","Congé":"#1565C0","Repos":"#6A1B9A"};
+  const presList=(entries||[]).filter(e=>e&&e.kind==="presence");
+  const getP=(name)=>presList.find(p=>p.date===date&&p.educName===name&&p.site===mySite);
+  const setP=(name,statut)=>{const ex=getP(name);onSave({id:ex?ex.id:"se_"+date+"_"+mySite+"_"+name.replace(/\W/g,""),kind:"presence",date,educName:name,site:mySite,statut,note:ex?ex.note:"",auteur:user.name,createdAt:ex?ex.createdAt:new Date().toISOString()});};
+  const setNote=(name,note)=>{const ex=getP(name);if(!ex)return;onSave({...ex,note});};
+  const[rEduc,setREduc]=useState("");const[rType,setRType]=useState("Maladie");const[rDate,setRDate]=useState(today);const[rTexte,setRTexte]=useState("");const[rErr,setRErr]=useState("");
+  const rapports=(entries||[]).filter(e=>e&&e.kind==="rapport"&&(mySite==="Tous"||e.site===mySite)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const submitR=()=>{setRErr("");if(!rEduc){setRErr("Choisissez un éducateur.");return;}if(!rTexte.trim()){setRErr("Rédigez le rapport.");return;}onSave({id:"se_r_"+Date.now(),kind:"rapport",date:rDate,educName:rEduc,site:mySite,type:rType,note:rTexte.trim(),auteur:user.name,createdAt:new Date().toISOString()});setRTexte("");};
+  return(<div>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <h2 style={{margin:0,fontSize:20,color:C.dark,fontWeight:800}}>Présences éducateurs</h2>
+      <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...S.inp,width:"auto",padding:"8px 12px"}}/>
+      {isChef&&<select value={site} onChange={e=>setSite(e.target.value)} style={{...S.inp,width:"auto",padding:"8px 12px"}}><option>Djilass</option><option>Fatick</option></select>}
+      {!isChef&&<span style={{fontSize:13,color:C.light,fontWeight:700}}>Site : {user.site}</span>}
+    </div>
+    <div style={S.card}>
+      <div style={{fontWeight:800,color:C.dark,fontSize:15,marginBottom:12}}>Registre du {date.split("-").reverse().join("/")}</div>
+      {educs.length===0&&<div style={{color:C.light,fontSize:13}}>Aucun éducateur rattaché à ce site.</div>}
+      {educs.map(ed=>{const p=getP(ed.name);return(<div key={ed.id} style={{borderBottom:"1px solid "+C.border,padding:"10px 0"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontWeight:800,color:C.dark,fontSize:14,minWidth:110}}>{ed.name}</span>
+          {STATUTS.map(st=><button key={st} onClick={()=>setP(ed.name,st)} style={{padding:"5px 11px",borderRadius:8,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",border:"1.5px solid "+(p&&p.statut===st?SC[st]:C.border),background:p&&p.statut===st?SC[st]:"#fff",color:p&&p.statut===st?"#fff":C.mid}}>{st}</button>)}
+        </div>
+        {p&&p.statut&&p.statut!=="Présent"&&<input value={p.note||""} onChange={e=>setNote(ed.name,e.target.value)} placeholder="Précision (motif, heure…)" style={{...S.inp,marginTop:8,padding:"8px 12px",fontSize:13}}/>}
+      </div>);})}
+    </div>
+    <div style={S.card}>
+      <div style={{fontWeight:800,color:C.dark,fontSize:15,marginBottom:12}}>Rapport concernant un éducateur</div>
+      {rErr&&<div style={{background:"#FFEBEE",color:"#C62828",fontWeight:700,fontSize:13,padding:"10px 14px",borderRadius:10,marginBottom:10}}>{rErr}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label style={S.lbl}>Éducateur</label><select value={rEduc} onChange={e=>setREduc(e.target.value)} style={S.inp}><option value="">--</option>{educs.map(ed=><option key={ed.id} value={ed.name}>{ed.name}</option>)}</select></div>
+        <div><label style={S.lbl}>Type</label><select value={rType} onChange={e=>setRType(e.target.value)} style={S.inp}><option>Maladie</option><option>Problème</option><option>Incident</option><option>Comportement</option><option>Autre</option></select></div>
+        <div><label style={S.lbl}>Date</label><input type="date" value={rDate} onChange={e=>setRDate(e.target.value)} style={S.inp}/></div>
+      </div>
+      <div style={{marginBottom:10}}><label style={S.lbl}>Rapport</label><textarea value={rTexte} onChange={e=>setRTexte(e.target.value)} rows={4} style={{...S.inp,resize:"vertical"}} placeholder="Décrivez la situation (maladie, problème, incident…)"/></div>
+      <button onClick={submitR} style={S.btnP}><Plus size={16}/>Enregistrer le rapport</button>
+    </div>
+    {rapports.map(r=><div key={r.id} style={{...S.card,padding:"14px 18px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><span style={{fontWeight:800,color:C.dark,fontSize:14}}>{r.educName}</span><span style={{background:"#FFF3E0",color:"#E65100",fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:8}}>{r.type}</span><span style={{fontSize:11,color:C.light,fontWeight:700}}>{r.date} · {r.site}</span></div>
+          <div style={{fontSize:13,color:C.mid,whiteSpace:"pre-wrap"}}>{r.note}</div>
+          <div style={{fontSize:11,color:C.light,marginTop:4}}>Rédigé par {r.auteur}</div>
+        </div>
+        {(isChef||r.auteur===user.name)&&<button onClick={()=>{if(confirm("Supprimer ce rapport ?"))onDelete(r.id);}} style={{...S.btnS,padding:"7px 12px",fontSize:12,alignSelf:"flex-start"}}>Suppr.</button>}
+      </div>
+    </div>)}
+  </div>);
+}
 function EspaceRH({user,docs,users,onAdd,onSign,onDelete}){
   const[cat,setCat]=useState("Document");const[dest,setDest]=useState(user.role==="educateur"?user.name:"Tous");const[signId,setSignId]=useState(null);const[uploading,setUploading]=useState(false);
   const isEnc=user.role!=="educateur";
@@ -1405,7 +1562,7 @@ export default function App(){
   const[rapports,setRapports]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
   const[appUsers,setAppUsers]=useState(USERS);
   const[appJeunes,setAppJeunes]=useState(JEUNES);
- const[rapportsSite,setRapportsSite]=useState([]);
+ const[rapportsSite,setRapportsSite]=useState([]);const[intendance,setIntendance]=useState([]);const[suiviEduc,setSuiviEduc]=useState([]);
   const[agenda,setAgenda]=useState(lsData?.agenda||[]);
  const[loginLogs,setLoginLogs]=useState(lsData?.loginLogs||[]);
 const[deletionLogs,setDeletionLogs]=useState(lsData?.deletionLogs||[]);
@@ -1420,7 +1577,7 @@ const docsReadOK=useRef(false);const docsWasNonEmpty=useRef(false);
 useEffect(()=>{let cancelled=false,tries=0;const att=async()=>{tries++;let ok=false,val=null;try{const r=await fetch(FB_URL+"/documents.json?auth="+FB_SECRET);if(r.ok){val=await r.json();ok=true;}}catch(e){}if(cancelled)return;if(ok){const remote=Array.isArray(val)?val:val?Object.values(val):[];if(remote.length){docsWasNonEmpty.current=true;setDocs(prev=>{const byId={};[...prev,...remote].forEach(d=>{if(d&&d.id!=null)byId[d.id]=d;});return Object.values(byId);});}docsReadOK.current=true;}else if(tries<6){setTimeout(att,3000);}};att();return()=>{cancelled=true;};},[]);
 useEffect(()=>{try{localStorage.setItem("pdsr_docs",JSON.stringify(docs));}catch{}if(!docsReadOK.current)return;if(docs.length===0&&docsWasNonEmpty.current)return;if(docs.length)docsWasNonEmpty.current=true;if(window._docsTimer)clearTimeout(window._docsTimer);window._docsTimer=setTimeout(()=>{fbSet("documents",docs);},1500);},[docs]);
   // Temps réel : récupère et fusionne les nouveautés toutes les 5 s (affichage live sans recharger)
-  useEffect(()=>{if(!user)return;const sameIds=(a,b)=>{if(a.length!==b.length)return true;const s=new Set(a.map(x=>x&&x.id));return!b.every(x=>s.has(x&&x.id));};const tick=async()=>{if(!fbReadOK.current)return;let rem=null;try{const r=await fetch(FB_URL+"/data.json?auth="+FB_SECRET);if(r.ok)rem=await r.json();}catch(e){}if(!rem)return;const tomb=new Set();((rem.deletionLogs)||[]).forEach(t=>{if(t&&t.origId!=null)tomb.add(t.type+":"+t.origId);});const merge=(prev,remoteArr,typeName)=>{const m={};(Array.isArray(prev)?prev:[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{if(x&&x.id!=null&&!m[x.id])m[x.id]=x;});return Object.values(m).filter(x=>!tomb.has(typeName+":"+x.id));};setRapports(prev=>{const n=merge(prev,rem.rapports,"rapport");return sameIds(prev||[],n)?n:prev;});setEvenements(prev=>{const n=merge(prev,rem.evenements,"evenement");return sameIds(prev||[],n)?n:prev;});setAgenda(prev=>{const n=merge(prev,rem.agenda,"agenda");return sameIds(prev||[],n)?n:prev;});if(Array.isArray(rem.presences)){setPresences(prev=>{const pm={};const add=(a)=>{(Array.isArray(a)?a:[]).forEach(p=>{if(p&&p.jeuneId!=null&&p.date)pm[p.jeuneId+"|"+p.date]=p;});};add(prev);add(rem.presences);const n=Object.values(pm);return(Array.isArray(prev)&&prev.length===n.length)?prev:n;});}if(rem.users&&user&&user.role!=="directeur"&&user.role!=="chef_service"&&!user.isAdmin){const fbu=(Array.isArray(rem.users)?rem.users:Object.values(rem.users)).filter(Boolean);setAppUsers(prev=>{const next=fbu.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});const changed=next.length!==(prev||[]).length||next.some(n=>{const p=(prev||[]).find(x=>x.id===n.id);return!p||p.role!==n.role||p.site!==n.site||p.disabled!==n.disabled;});return changed?next:prev;});}};const iv=setInterval(tick,5000);return()=>clearInterval(iv);},[user]);
+  useEffect(()=>{if(!user)return;const sameIds=(a,b)=>{if(a.length!==b.length)return true;const s=new Set(a.map(x=>x&&x.id));return!b.every(x=>s.has(x&&x.id));};const tick=async()=>{if(!fbReadOK.current)return;let rem=null;try{const r=await fetch(FB_URL+"/data.json?auth="+FB_SECRET);if(r.ok)rem=await r.json();}catch(e){}if(!rem)return;const tomb=new Set();((rem.deletionLogs)||[]).forEach(t=>{if(t&&t.origId!=null)tomb.add(t.type+":"+t.origId);});const merge=(prev,remoteArr,typeName)=>{const m={};(Array.isArray(prev)?prev:[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(Array.isArray(remoteArr)?remoteArr:[]).forEach(x=>{if(x&&x.id!=null&&!m[x.id])m[x.id]=x;});return Object.values(m).filter(x=>!tomb.has(typeName+":"+x.id));};setRapports(prev=>{const n=merge(prev,rem.rapports,"rapport");return sameIds(prev||[],n)?n:prev;});setEvenements(prev=>{const n=merge(prev,rem.evenements,"evenement");return sameIds(prev||[],n)?n:prev;});setAgenda(prev=>{const n=merge(prev,rem.agenda,"agenda");return sameIds(prev||[],n)?n:prev;});setIntendance(prev=>{const n=merge(prev,rem.intendance,"intendance");return sameIds(prev||[],n)?n:prev;});setSuiviEduc(prev=>{const n=merge(prev,rem.suiviEduc,"suiviEduc");return sameIds(prev||[],n)?n:prev;});if(Array.isArray(rem.presences)){setPresences(prev=>{const pm={};const add=(a)=>{(Array.isArray(a)?a:[]).forEach(p=>{if(p&&p.jeuneId!=null&&p.date)pm[p.jeuneId+"|"+p.date]=p;});};add(prev);add(rem.presences);const n=Object.values(pm);return(Array.isArray(prev)&&prev.length===n.length)?prev:n;});}if(rem.users&&user&&user.role!=="directeur"&&user.role!=="chef_service"&&!user.isAdmin){const fbu=(Array.isArray(rem.users)?rem.users:Object.values(rem.users)).filter(Boolean);setAppUsers(prev=>{const next=fbu.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});const changed=next.length!==(prev||[]).length||next.some(n=>{const p=(prev||[]).find(x=>x.id===n.id);return!p||p.role!==n.role||p.site!==n.site||p.disabled!==n.disabled;});return changed?next:prev;});}};const iv=setInterval(tick,5000);return()=>clearInterval(iv);},[user]);
   useEffect(()=>{if(!user)return;if(!(user.role==="directeur"||user.role==="chef_service"||user.isAdmin))return;if(!fbReadOK.current)return;if(!Array.isArray(appUsers)||appUsers.length===0)return;if(window._usersTimer)clearTimeout(window._usersTimer);window._usersTimer=setTimeout(()=>{fbSet("data/users",appUsers);},700);},[appUsers,user]);
 
 // Firebase sync
@@ -1438,11 +1595,13 @@ useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;i
   const mergedA=union(agenda,remote&&remote.agenda,"agenda");
   const pm={};const addP=(arr)=>{(Array.isArray(arr)?arr:[]).forEach(p=>{if(p&&p.jeuneId!=null&&p.date)pm[p.jeuneId+"|"+p.date]=p;});};addP(remote&&remote.presences);addP(Array.isArray(presences)?presences:[]);const mergedP=Array.isArray(presences)&&!Array.isArray(remote&&remote.presences)?presences:Object.values(pm);
   const mergedDL=union(deletionLogs,remote&&remote.deletionLogs,"__none__");
+  const mergedInt=union(intendance,remote&&remote.intendance,"intendance");
+  const mergedSE=union(suiviEduc,remote&&remote.suiviEduc,"suiviEduc");
   const remoteUsersArr=Array.isArray(remote&&remote.users)?remote.users:(remote&&remote.users)?Object.values(remote.users):null;
   const isRosterAdmin=user&&(user.role==="directeur"||user.role==="chef_service"||user.isAdmin);
   const mergedU=(()=>{const m={};(remoteUsersArr||[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(Array.isArray(appUsers)?appUsers:[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});return Object.values(m);})();
   const usersToWrite=isRosterAdmin?mergedU:(remoteUsersArr||appUsers);
-  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:usersToWrite,agenda:mergedA,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
+  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:usersToWrite,agenda:mergedA,loginLogs,majeurs:appMajeurs,rapportsSite,intendance:mergedInt,suiviEduc:mergedSE,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
   const dataVide=mergedR.length===0&&mergedE.length===0;
   if(dataVide&&fbWasNonEmpty.current){console.warn("[PDSR] Envoi vide bloqué.");return;}
   if(mergedR.length||mergedE.length)fbWasNonEmpty.current=true;
@@ -1450,7 +1609,7 @@ useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;i
   if(!dataVide)fbSet("backups/jour_"+today,{...data,_ts:new Date().toISOString()});
   if(mergedR.length>(rapports||[]).length||mergedE.length>(evenements||[]).length){fbSkip.current=true;setRapports(mergedR);setEvenements(mergedE);setAgenda(mergedA);}
 },2000);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig]);
-const loadFb=(d)=>{if(!d){return;}const cnt=(v)=>!v?0:(Array.isArray(v)?v.filter(Boolean).length:Object.keys(v).length);const remoteR=cnt(d.rapports),remoteE=cnt(d.evenements);const localR=(rapports||[]).length,localE=(evenements||[]).length;if(remoteR===0&&remoteE===0&&(localR>0||localE>0)){console.warn("[PDSR] Cloud vide ignoré : on conserve les données locales et on répare le cloud.");fbWasNonEmpty.current=true;fbReadOK.current=true;fbLoaded.current=true;const heal={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig};fbSet("data",heal);fbSet("backups/jour_"+new Date().toISOString().slice(0,10),{...heal,_ts:new Date().toISOString()});return;}fbSkip.current=true;const remoteNonEmpty=remoteR||remoteE;if(remoteNonEmpty)fbWasNonEmpty.current=true;if(d.rapports&&(remoteR>0||localR===0))setRapports(toArr(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements&&(remoteE>0||localE===0))setEvenements(toArr(d.evenements));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda(toArr(d.agenda));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs));if(d.projets)setProjets(toArr(d.projets));if(d.sejourConfig)setSejourConfig(d.sejourConfig);if(d.etabConfig)setEtabConfig(prev=>({...ETAB_DEFAULT,...prev,...d.etabConfig}));fbLoaded.current=true;};
+const loadFb=(d)=>{if(!d){return;}const cnt=(v)=>!v?0:(Array.isArray(v)?v.filter(Boolean).length:Object.keys(v).length);const remoteR=cnt(d.rapports),remoteE=cnt(d.evenements);const localR=(rapports||[]).length,localE=(evenements||[]).length;if(remoteR===0&&remoteE===0&&(localR>0||localE>0)){console.warn("[PDSR] Cloud vide ignoré : on conserve les données locales et on répare le cloud.");fbWasNonEmpty.current=true;fbReadOK.current=true;fbLoaded.current=true;const heal={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,intendance,suiviEduc,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig};fbSet("data",heal);fbSet("backups/jour_"+new Date().toISOString().slice(0,10),{...heal,_ts:new Date().toISOString()});return;}fbSkip.current=true;const remoteNonEmpty=remoteR||remoteE;if(remoteNonEmpty)fbWasNonEmpty.current=true;if(d.rapports&&(remoteR>0||localR===0))setRapports(toArr(d.rapports));if(d.presences)setPresences(typeof d.presences==="object"&&!Array.isArray(d.presences)?d.presences:Array.isArray(d.presences)?d.presences:INIT_PRESENCES);if(d.evenements&&(remoteE>0||localE===0))setEvenements(toArr(d.evenements));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda(toArr(d.agenda));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.intendance)setIntendance(toArr(d.intendance));if(d.suiviEduc)setSuiviEduc(toArr(d.suiviEduc));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs));if(d.projets)setProjets(toArr(d.projets));if(d.sejourConfig)setSejourConfig(d.sejourConfig);if(d.etabConfig)setEtabConfig(prev=>({...ETAB_DEFAULT,...prev,...d.etabConfig}));fbLoaded.current=true;};
 useEffect(()=>{let cancelled=false;let tries=0;
   const attempt=async()=>{tries++;let ok=false,val=null;
     try{const r=await fetch(FB_URL+"/data.json?auth="+FB_SECRET);if(r.ok){val=await r.json();ok=true;}}catch(e){}
@@ -1485,7 +1644,7 @@ const restoreData=(d)=>{if(!d)return;
   if(d.sejourConfig)setSejourConfig(d.sejourConfig);
   if(d.etabConfig)setEtabConfig(prev=>({...ETAB_DEFAULT,...prev,...d.etabConfig}));
   fbWasNonEmpty.current=true;fbReadOK.current=true;fbLoaded.current=true;
-  const data={rapports:mergedR,presences:(d.presences||presences),evenements:mergedE,jeunes:(d.jeunes&&toArr(d.jeunes).length?toArr(d.jeunes):appJeunes),users:(d.users&&toArr(d.users).length?toArr(d.users):appUsers),agenda:mergedA,loginLogs,majeurs:(d.majeurs&&toArr(d.majeurs).length?toArr(d.majeurs):appMajeurs),rapportsSite:(d.rapportsSite&&toArr(d.rapportsSite).length?toArr(d.rapportsSite):rapportsSite),djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets:(d.projets&&toArr(d.projets).length?toArr(d.projets):projets),sejourConfig:(d.sejourConfig||sejourConfig),etabConfig};
+  const data={rapports:mergedR,presences:(d.presences||presences),evenements:mergedE,jeunes:(d.jeunes&&toArr(d.jeunes).length?toArr(d.jeunes):appJeunes),users:(d.users&&toArr(d.users).length?toArr(d.users):appUsers),agenda:mergedA,loginLogs,majeurs:(d.majeurs&&toArr(d.majeurs).length?toArr(d.majeurs):appMajeurs),rapportsSite:(d.rapportsSite&&toArr(d.rapportsSite).length?toArr(d.rapportsSite):rapportsSite),intendance:(d.intendance&&toArr(d.intendance).length?toArr(d.intendance):intendance),suiviEduc:(d.suiviEduc&&toArr(d.suiviEduc).length?toArr(d.suiviEduc):suiviEduc),djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets:(d.projets&&toArr(d.projets).length?toArr(d.projets):projets),sejourConfig:(d.sejourConfig||sejourConfig),etabConfig};
   fbSet("data",data);fbSet("backups/restauration_"+new Date().toISOString().slice(0,19).replace(/[:T]/g,"-"),{...data,_ts:new Date().toISOString()});
 };
 const forcePush=async()=>{setSyncMsg("Envoi vers le cloud…");try{await fbSet("data",collectData());setSyncMsg("✓ Données envoyées au cloud");}catch(e){setSyncMsg("✗ Échec de l'envoi");}setTimeout(()=>setSyncMsg(null),3500);};
@@ -1521,6 +1680,8 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP}/>}
         {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} onUpdateAll={setEvenements}/>}
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={effUser}/>}
+        {page==="intendance"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<Intendance user={effUser} items={intendance} onSave={r=>{setIntendance(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"intendance",origId:id,date:new Date().toISOString()}]);setIntendance(prev=>prev.filter(x=>x.id!==id));}}/>}
+        {page==="pres-educ"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<PresEduc user={effUser} users={appUsers} entries={suiviEduc} onSave={r=>{setSuiviEduc(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"suiviEduc",origId:id,date:new Date().toISOString()}]);setSuiviEduc(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to)=>{setRapports(p=>p.filter(r=>r.date<from||r.date>to));setEvenements(p=>p.filter(e=>e.date<from||e.date>to));setAgenda(p=>p.filter(a=>a.date<from||a.date>to));}}/>}
       {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin currentUser={effUser} isAdmin={effUser.isAdmin} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>setLoginLogs([])} onPurgeDeletionLogs={()=>setDeletionLogs([])} presences={presences} onChangeP={changeP} agenda={agenda} onUpdateAgenda={setAgenda} projets={projets} rapportsSite={rapportsSite} onUpdateRapportsSite={setRapportsSite} onDeleteRapport={delR} onUpdateRapport={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} onDeleteEvenement={delE} onUpdateEvenements={setEvenements}/>}
