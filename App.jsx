@@ -98,7 +98,7 @@ function Topbar({title,onMenu,onBack}){
   </header>);
 }
 
-function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs}){
+function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs,intendance,suiviEduc}){
   const isMajEduc=user.role==="educateur"&&user.isEducMajeur;
   const pool=isMajEduc?(majeurs||MAJEURS):(jeunes||JEUNES);
   const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
@@ -110,6 +110,33 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
   return(<div style={{padding:"20px 16px",maxWidth:800,margin:"0 auto",animation:"fadeIn 0.4s ease"}}>
     <p style={{color:C.light,fontSize:12,margin:"0 0 4px",letterSpacing:"0.02em"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
     <h1 style={{fontSize:24,fontWeight:900,color:C.dark,margin:"0 0 22px",letterSpacing:"-0.01em"}}>Bonjour, {user.name.split(" ")[0]} 👋</h1>
+    {(user.id===2||user.id===3)&&(()=>{
+      const its=(intendance||[]).filter(Boolean);
+      const bAtt=its.filter(i=>i.type==="besoin"&&i.statut==="en_attente");
+      const bVal=its.filter(i=>i.type==="besoin"&&i.statut==="validee");
+      const rOuv=its.filter(i=>i.type==="reparation"&&i.statut!=="repare");
+      const rUrg=rOuv.filter(i=>i.urgence==="Urgente");
+      const absAuj=(suiviEduc||[]).filter(e=>e&&e.kind==="presence"&&e.date===today&&e.statut&&e.statut!=="Présent");
+      const rapEducRec=(suiviEduc||[]).filter(e=>e&&e.kind==="rapport").sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,3);
+      return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:22}}>
+        <div onClick={()=>onNav("intendance")} style={{...S.card,marginBottom:0,cursor:"pointer",borderLeft:"4px solid "+C.orange}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><Package size={18} color={C.orange}/><span style={{fontWeight:800,fontSize:13,color:C.dark,textTransform:"uppercase",letterSpacing:"0.04em"}}>Intendance</span></div>
+          <div style={{fontSize:13,color:C.mid,lineHeight:1.7}}>
+            <div><b style={{color:bAtt.length?"#E65100":C.mid}}>{bAtt.length}</b> demande{bAtt.length>1?"s":""} en attente{bVal.length?<span> · <b style={{color:"#1565C0"}}>{bVal.length}</b> validée{bVal.length>1?"s":""} à livrer</span>:null}</div>
+            <div><b style={{color:rOuv.length?"#C62828":C.mid}}>{rOuv.length}</b> réparation{rOuv.length>1?"s":""} ouverte{rOuv.length>1?"s":""}{rUrg.length?<span style={{color:"#C62828",fontWeight:800}}> dont {rUrg.length} URGENTE{rUrg.length>1?"S":""}</span>:null}</div>
+            {bAtt.slice(0,2).map(b=><div key={b.id} style={{fontSize:12,color:C.light}}>• {b.categorie} — {b.site} (liv. {b.dateLivraison})</div>)}
+          </div>
+        </div>
+        <div onClick={()=>onNav("pres-educ")} style={{...S.card,marginBottom:0,cursor:"pointer",borderLeft:"4px solid "+C.accent}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><Users size={18} color={C.accent}/><span style={{fontWeight:800,fontSize:13,color:C.dark,textTransform:"uppercase",letterSpacing:"0.04em"}}>Éducateurs</span></div>
+          <div style={{fontSize:13,color:C.mid,lineHeight:1.7}}>
+            <div><b style={{color:absAuj.length?"#C62828":"#2E7D32"}}>{absAuj.length}</b> absence{absAuj.length>1?"s":""} signalée{absAuj.length>1?"s":""} aujourd'hui</div>
+            {absAuj.slice(0,3).map(a=><div key={a.id} style={{fontSize:12,color:C.light}}>• {a.educName} — {a.statut}{a.note?" ("+a.note+")":""} · {a.site}</div>)}
+            {rapEducRec.length>0&&<div style={{marginTop:4,fontSize:12,color:C.light}}>Derniers rapports : {rapEducRec.map(r=>r.educName+" ("+r.type+")").join(", ")}</div>}
+          </div>
+        </div>
+      </div>);
+    })()}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
       {[{l:isMajEduc?"Majeurs suivis":"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:jeunesNav},{l:"Présents aujourd'hui",v:`${myPresents}/${vj.length}`,i:"✔️",c:"#2E7D32",bg:"#E8F5E9",nav:isMajEduc?null:"presences"},{l:"Rapports ce jour",v:myRapports,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:myGraves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
         <div key={i} onClick={()=>s.nav&&setPage(s.nav)} style={{...S.card,display:"flex",alignItems:"center",gap:14,padding:"16px",marginBottom:0,cursor:s.nav?"pointer":"default",borderLeft:"4px solid "+s.c,animation:"fadeIn 0.4s ease "+(i*0.08)+"s both",opacity:s.nav?1:0.7}}>
@@ -1671,7 +1698,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
       <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined}/>
       <main style={{flex:1,overflowY:"auto"}}>
-        {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs}/>}
+        {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:11,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
