@@ -119,7 +119,6 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
       const se=(suiviEduc||[]).filter(Boolean);
       const pAuj=se.filter(e=>e.kind==="presence"&&e.date===today);
       const absAuj=pAuj.filter(e=>e.statut&&e.statut!=="Présent");
-      const covSite=(s)=>{const eds=(users||[]).filter(u=>u&&u.role==="educateur"&&!u.disabled&&(u.site===s||u.site==="Tous"));const pointes=eds.filter(ed=>pAuj.some(p=>p.educName===ed.name&&p.site===s)).length;return pointes+"/"+eds.length;};
       const rapEducRec=se.filter(e=>e.kind==="rapport").sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,3);
       return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:22}}>
         <div onClick={()=>onNav("intendance")} style={{...S.card,marginBottom:0,cursor:"pointer",borderLeft:"4px solid "+C.orange}}>
@@ -133,8 +132,11 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
         <div onClick={()=>onNav("pres-educ")} style={{...S.card,marginBottom:0,cursor:"pointer",borderLeft:"4px solid "+C.accent}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><Users size={18} color={C.accent}/><span style={{fontWeight:800,fontSize:13,color:C.dark,textTransform:"uppercase",letterSpacing:"0.04em"}}>Éducateurs</span></div>
           <div style={{fontSize:13,color:C.mid,lineHeight:1.7}}>
-            <div>Pointage du jour : <b>Fatick {covSite("Fatick")}</b> · <b>Djilass {covSite("Djilass")}</b></div>
-            <div><b style={{color:absAuj.length?"#C62828":"#2E7D32"}}>{absAuj.length}</b> absence{absAuj.length>1?"s":""} signalée{absAuj.length>1?"s":""} aujourd'hui{pAuj.length===0?<span style={{color:"#E65100",fontWeight:800}}> — registre non renseigné</span>:null}</div>
+            {(()=>{const cnt=st=>pAuj.filter(e=>e.statut===st).length;const P=cnt("Présent"),R=cnt("Repos"),A=cnt("Absent"),M=cnt("Maladie"),Rt=cnt("Retard"),Cg=cnt("Congé");
+              return(<div>
+                <div>Aujourd'hui : <b style={{color:"#2E7D32"}}>{P}</b> présent{P>1?"s":""} · <b style={{color:"#6A1B9A"}}>{R}</b> repos · <b style={{color:"#C62828"}}>{A}</b> absent{A>1?"s":""} · <b style={{color:"#E65100"}}>{M}</b> maladie{(Rt>0||Cg>0)?<span> · {Rt>0?<span><b style={{color:"#F9A825"}}>{Rt}</b> retard{Rt>1?"s":""}</span>:null}{Rt>0&&Cg>0?" · ":""}{Cg>0?<span><b style={{color:"#1565C0"}}>{Cg}</b> congé{Cg>1?"s":""}</span>:null}</span>:null}</div>
+                {pAuj.length===0&&<div style={{color:"#E65100",fontWeight:800}}>Registre non renseigné aujourd'hui</div>}
+              </div>);})()}
             {absAuj.slice(0,3).map(a=><div key={a.id} style={{fontSize:12,color:C.light}}>• {a.educName} — {a.statut}{a.note?" ("+a.note+")":""} · {a.site}</div>)}
             {rapEducRec.length>0&&<div style={{marginTop:4,fontSize:12,color:C.light}}>Derniers rapports : {rapEducRec.map(r=>r.educName+" ("+r.type+")").join(", ")}</div>}
           </div>
