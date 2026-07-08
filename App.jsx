@@ -63,6 +63,21 @@ function Login({onLogin,users}){
 
 const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"projets",label:"Projets personnalisés",icon:FileText},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar},{id:"rapport-site",label:"Rapport de site",icon:FileText},{id:"intendance",label:"Intendance",icon:Package},{id:"pres-educ",label:"Présences éducateurs",icon:Calendar},{id:"espace-rh",label:"Espace éducateur",icon:FileText}];
 
+const GlobalFX=()=><style>{`
+@keyframes pgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes pulseUrg{0%,100%{box-shadow:0 0 0 0 rgba(198,40,40,.55)}50%{box-shadow:0 0 0 7px rgba(198,40,40,0)}}
+.pg-anim{animation:pgIn .32s cubic-bezier(.22,1,.36,1)}
+.pg-anim>div>div{animation:cardIn .4s cubic-bezier(.22,1,.36,1) backwards}
+.pg-anim>div>div:nth-child(2){animation-delay:.05s}.pg-anim>div>div:nth-child(3){animation-delay:.1s}.pg-anim>div>div:nth-child(4){animation-delay:.15s}.pg-anim>div>div:nth-child(5){animation-delay:.2s}
+button{transition:transform .14s ease,filter .14s ease,box-shadow .14s ease!important}
+button:hover{filter:brightness(1.07)}
+button:active{transform:scale(.96)}
+input,select,textarea{transition:border-color .15s ease,box-shadow .15s ease!important}
+input:focus,select:focus,textarea:focus{outline:none!important;border-color:#C8963E!important;box-shadow:0 0 0 3px rgba(200,150,62,.18)!important}
+.pulse-urg{animation:pulseUrg 1.6s infinite}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#c9b899;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+`}</style>;
 function Sidebar({page,onNav,user,onLogout,open,onClose}){
   return(<>
     {open&&<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:40}}/>}
@@ -255,7 +270,7 @@ function Rapports({user,rapports,onSave,onDelete,onUpdate,onPatch,majeurs,jeunes
       <div style={{marginBottom:14}}><label style={{...S.lbl}}>Type de contact</label><select style={{...S.inp}} value={typeContact} onChange={e=>setTypeContact(e.target.value)}><option value="journee">Journée du jeune</option><option value="rdv_parents">RDV téléphonique avec les parents</option><option value="rdv_exterieur">RDV téléphonique contact extérieur (en lien avec le jeune)</option></select></div>
       <div style={{marginBottom:14}}><label style={{...S.lbl}}>Observation</label><textarea style={{...S.inp,minHeight:110,resize:"vertical",lineHeight:1.6}} placeholder="Décrivez la journée du jeune, le contenu de l'échange..." value={obs} onChange={e=>setObs(e.target.value)}/></div>
       {needTrait&&<div style={{marginBottom:14,padding:"12px 14px",background:"#FFF5F5",border:"1.5px solid #F3C6C6",borderRadius:10}}><label style={{...S.lbl,color:"#C62828"}}>💊 Traitement administré aujourd'hui <span style={{fontWeight:800}}>(obligatoire)</span></label><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>{[["totalite","En totalité","#2E7D32"],["moitie","De moitié","#E65100"],["aucun","Pas du tout","#C62828"]].map(([v,l,c])=><button key={v} onClick={()=>setTraitAdmin(v)} style={{flex:"1 1 30%",padding:"9px 8px",borderRadius:8,border:"1.5px solid "+(traitAdmin===v?c:C.border),background:traitAdmin===v?c:C.white,color:traitAdmin===v?"#fff":C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div></div>}
-      <button onClick={handle} style={{...S.btnP,width:"100%",justifyContent:"center",background:saved?"#4CAF50":undefined}}>{saved?<><Check size={17}/>Enregistré !</>:<><FileText size={17}/>Enregistrer le rapport</>}</button>
+      <button onClick={handle} style={{...S.btnP,width:"100%",justifyContent:"center",background:saved?"#66BB6A":"#2E7D32",boxShadow:"0 4px 14px rgba(46,125,50,0.35)"}}>{saved?<><Check size={17}/>Enregistré !</>:<><FileText size={17}/>Enregistrer le rapport</>}</button>
     </div>
     {(()=>{const allR=(rapports||[]).filter(r=>{if(!vj.some(j=>j.id===r.jeuneId))return false;if(siteF!=="Tous"){const j=allPool.find(j2=>j2.id===r.jeuneId);if(!j||j.site!==siteF)return false;}return true;}).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,MAX_DISPLAY);const totalPages=Math.ceil(allR.length/PER_PAGE);const pageR=allR.slice(rPage*PER_PAGE,(rPage+1)*PER_PAGE);return(<>
     {(user.role==="directeur"||user.role==="chef_service"||user.site==="Tous")&&<div style={{display:"flex",gap:7,margin:"18px 0 4px"}}>{["Tous","Fatick","Djilass"].map(s=><button key={s} onClick={()=>{setSiteF(s);setRPage(0);}} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${siteF===s?C.gold:C.border}`,background:siteF===s?C.gold:C.white,color:siteF===s?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>}
@@ -1474,7 +1489,7 @@ function Intendance({user,items,onSave,onDelete}){
       {reps.map(r=><div key={r.id} style={{...S.card,padding:"14px 18px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:200}}>
-            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><span style={{fontWeight:800,color:C.dark,fontSize:14}}>{r.objet}</span>{chip(r.statut,RST)}{r.urgence==="Urgente"&&<span style={{background:"#C62828",color:"#fff",fontSize:10,fontWeight:900,padding:"2px 8px",borderRadius:6}}>URGENT</span>}<span style={{fontSize:11,color:C.light,fontWeight:700}}>{r.site}</span></div>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}><span style={{fontWeight:800,color:C.dark,fontSize:14}}>{r.objet}</span>{chip(r.statut,RST)}{r.urgence==="Urgente"&&<span className="pulse-urg" style={{background:"#C62828",color:"#fff",fontSize:10,fontWeight:900,padding:"2px 8px",borderRadius:6}}>URGENT</span>}<span style={{fontSize:11,color:C.light,fontWeight:700}}>{r.site}</span></div>
             {r.description&&<div style={{fontSize:13,color:C.mid,marginBottom:4}}>{r.description}</div>}
             <div style={{fontSize:11,color:C.light}}>Signalé par {r.auteur} le {(r.createdAt||"").slice(0,10)}</div>
           </div>
@@ -1704,7 +1719,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
     <Sidebar page={page} onNav={setPage} user={effUser} onLogout={()=>{setViewAs(null);setUser(null);}} open={open} onClose={()=>setOpen(false)}/>
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
       <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined}/>
-      <main style={{flex:1,overflowY:"auto"}}>
+      <main style={{flex:1,overflowY:"auto"}}><GlobalFX/><div key={page} className="pg-anim">
         {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:11,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
@@ -1723,7 +1738,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="projets"&&<ProjetsPersonnalises user={effUser} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets}/>}
       {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={effUser.site} user={effUser} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
         {page==="espace-rh"&&<EspaceRH user={effUser} docs={docs} users={appUsers} onAdd={(d)=>setDocs(p=>[...p,d])} onSign={(id,sig)=>setDocs(p=>p.map(x=>x.id===id?{...x,signatures:[...(x.signatures||[]),sig]}:x))} onDelete={(id)=>setDocs(p=>p.filter(x=>x.id!==id))}/>}
-      </main>
+      </div></main>
     </div>
   </div>);
 }
