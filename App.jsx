@@ -1622,10 +1622,10 @@ export default function App(){
   const[appUsers,setAppUsers]=useState(USERS);
   const[appJeunes,setAppJeunes]=useState(JEUNES);
  const[rapportsSite,setRapportsSite]=useState([]);const[intendance,setIntendance0]=useState([]);const[suiviEduc,setSuiviEduc0]=useState([]);const[purgeMarks,setPurgeMarks]=useState({});
+  const[agenda,setAgenda0]=useState(lsData?.agenda||[]);
   const _stampDiff=(prev,arr,keyf)=>{const kf=keyf||(x=>x&&x.id);const pm={};(Array.isArray(prev)?prev:[]).forEach(x=>{const k=x?kf(x):null;if(k!=null){const{updatedAt,...rest}=x;pm[k]=JSON.stringify(rest);}});return(Array.isArray(arr)?arr:[]).map(x=>{const k=x?kf(x):null;if(k==null)return x;const{updatedAt,...rest}=x;return pm[k]===JSON.stringify(rest)?x:{...x,updatedAt:nowSrv()};});};
   const _mkStamped=(setter,keyf)=>(next)=>setter(prev=>_stampDiff(prev,typeof next==="function"?next(prev):next,keyf));
   const setRapports=_mkStamped(setRapports0),setEvenements=_mkStamped(setEvenements0),setAgenda=_mkStamped(setAgenda0),setIntendance=_mkStamped(setIntendance0),setSuiviEduc=_mkStamped(setSuiviEduc0),setPresences=_mkStamped(setPresences0,x=>x&&x.jeuneId!=null&&x.date?x.jeuneId+"|"+x.date:null);
-  const[agenda,setAgenda0]=useState(lsData?.agenda||[]);
  const[loginLogs,setLoginLogs]=useState(lsData?.loginLogs||[]);
 const[deletionLogs,setDeletionLogs]=useState(lsData?.deletionLogs||[]);
 const[appMajeurs,setAppMajeurs]=useState(lsData?.majeurs||MAJEURS);
