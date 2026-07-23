@@ -4,7 +4,11 @@
 // RESEND_API_KEY (Vercel > Settings > Environment Variables). Ne jamais la remettre ici :
 // le dépôt est public et Resend révoque automatiquement toute clé exposée sur GitHub.
 
-const DESTINATAIRES = ["jeanpierregardenatpdsr@gmail.com", "lmarcille1962@gmail.com", "omarngom21@yahoo.com"];
+// IMPORTANT : offre gratuite Resend sans domaine vérifié = envoi possible UNIQUEMENT
+// vers l'adresse du compte. Si on ajoute d'autres adresses, Resend refuse TOUT l'envoi.
+// Pour ajouter lmarcille1962@gmail.com et omarngom21@yahoo.com : vérifier d'abord un
+// domaine sur resend.com/domains et changer le "from" ci-dessous vers ce domaine.
+const DESTINATAIRES = ["jeanpierregardenatpdsr@gmail.com"];
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
