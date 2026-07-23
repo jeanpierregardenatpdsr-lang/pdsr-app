@@ -2,6 +2,31 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak, HeadingLevel } from "docx";
 import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download, Package, Wrench } from "lucide-react";
 
+/* Chargement robuste de SheetJS : 3 CDN en cascade, script classique (window.XLSX), sans dependance npm */
+let _xlsxPromise = null;
+function loadXLSX(){
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (_xlsxPromise) return _xlsxPromise;
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js",
+    "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+  ];
+  _xlsxPromise = new Promise((resolve, reject) => {
+    const tryNext = (i) => {
+      if (i >= urls.length) { _xlsxPromise = null; reject(new Error("Librairie Excel inaccessible (verifier la connexion)")); return; }
+      const s = document.createElement("script");
+      s.src = urls[i];
+      s.onload = () => { window.XLSX ? resolve(window.XLSX) : tryNext(i + 1); };
+      s.onerror = () => { s.remove(); tryNext(i + 1); };
+      document.head.appendChild(s);
+    };
+    tryNext(0);
+  });
+  return _xlsxPromise;
+}
+
+
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
 const LS_KEY="pdsr_data";
@@ -764,7 +789,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
         </div>}
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-          <label style={{...S.btnP,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Download size={14}/>Importer Excel<input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={async(e)=>{const f=e.target.files[0];if(!f)return;const XLSX=await import("xlsx");const data=await f.arrayBuffer();const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws);const maxId=Math.max(...jeunes.map(j=>j.id),0);const newJ=rows.map((r,i)=>({id:maxId+1+i,prenom:r["Prénom"]||r.prenom||"",nom:r["Nom"]||r.nom||"",site:r["Site"]||r.site||"Fatick",referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:r["Tél parent"]||r.telParent||"",telJeune:r["Tél jeune"]||r.telJeune||"",emailASE:r["Email ASE"]||r.emailASE||"",dateDebut:r["Date début"]||r.dateDebut||"",dateFin:r["Date fin"]||r.dateFin||""})).filter(j=>j.prenom);if(newJ.length===0){alert("Aucun jeune trouvé. Colonnes attendues: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin");return;}if(confirm("Importer "+newJ.length+" jeune(s) ?"))onUpdateJeunes([...jeunes,...newJ]);e.target.value="";}}/></label>
+          <label style={{...S.btnP,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Download size={14}/>Importer Excel<input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={async(e)=>{const f=e.target.files[0];if(!f)return;const XLSX=await loadXLSX();const data=await f.arrayBuffer();const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws);const maxId=Math.max(...jeunes.map(j=>j.id),0);const newJ=rows.map((r,i)=>({id:maxId+1+i,prenom:r["Prénom"]||r.prenom||"",nom:r["Nom"]||r.nom||"",site:r["Site"]||r.site||"Fatick",referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:r["Tél parent"]||r.telParent||"",telJeune:r["Tél jeune"]||r.telJeune||"",emailASE:r["Email ASE"]||r.emailASE||"",dateDebut:r["Date début"]||r.dateDebut||"",dateFin:r["Date fin"]||r.dateFin||""})).filter(j=>j.prenom);if(newJ.length===0){alert("Aucun jeune trouvé. Colonnes attendues: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin");return;}if(confirm("Importer "+newJ.length+" jeune(s) ?"))onUpdateJeunes([...jeunes,...newJ]);e.target.value="";}}/></label>
           <span style={{fontSize:10,color:C.mid}}>Colonnes: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin</span>
         </div>
             {jeunes.map(j=>{return(<div key={j.id} style={{...S.card,marginBottom:8}}>
@@ -802,7 +827,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,appMajeurs,o
           <button onClick={()=>{if(!newMajPrenom.trim())return;const id=Math.max(...(appMajeurs||MAJEURS).map(j=>j.id),99)+1;const nm=[...(appMajeurs||MAJEURS),{id,prenom:newMajPrenom,nom:newMajNom,site:newMajSite,referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:newMajTelP,telJeune:newMajTelJ,emailASE:newMajEmail,dateDebut:newMajDateD,dateFin:newMajDateF}];onUpdateMajeurs(null,null,null,nm);setNewMajPrenom("");setNewMajNom("");setNewMajTelP("");setNewMajTelJ("");setNewMajEmail("");setNewMajDateD("");setNewMajDateF("");setShowAddMajeur(false);}} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Plus size={14}/>Ajouter</button>
         </div>}
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-          <label style={{...S.btnP,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Download size={14}/>Importer Excel<input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={async(e)=>{const f=e.target.files[0];if(!f)return;const XLSX=await import("xlsx");const data=await f.arrayBuffer();const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws);const cur=appMajeurs||MAJEURS;const maxId=Math.max(...cur.map(j=>j.id),99);const newM=rows.map((r,i)=>({id:maxId+1+i,prenom:r["Prénom"]||r.prenom||"",nom:r["Nom"]||r.nom||"",site:r["Site"]||r.site||"Fatick",referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:r["Tél parent"]||r.telParent||"",telJeune:r["Tél jeune"]||r.telJeune||"",emailASE:r["Email ASE"]||r.emailASE||"",dateDebut:r["Date début"]||r.dateDebut||"",dateFin:r["Date fin"]||r.dateFin||""})).filter(j=>j.prenom);if(newM.length===0){alert("Aucun majeur trouvé.");return;}if(confirm("Importer "+newM.length+" majeur(s) ?"))onUpdateMajeurs(null,null,null,[...cur,...newM]);e.target.value="";}}/></label>
+          <label style={{...S.btnP,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Download size={14}/>Importer Excel<input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={async(e)=>{const f=e.target.files[0];if(!f)return;const XLSX=await loadXLSX();const data=await f.arrayBuffer();const wb=XLSX.read(data);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws);const cur=appMajeurs||MAJEURS;const maxId=Math.max(...cur.map(j=>j.id),99);const newM=rows.map((r,i)=>({id:maxId+1+i,prenom:r["Prénom"]||r.prenom||"",nom:r["Nom"]||r.nom||"",site:r["Site"]||r.site||"Fatick",referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:r["Tél parent"]||r.telParent||"",telJeune:r["Tél jeune"]||r.telJeune||"",emailASE:r["Email ASE"]||r.emailASE||"",dateDebut:r["Date début"]||r.dateDebut||"",dateFin:r["Date fin"]||r.dateFin||""})).filter(j=>j.prenom);if(newM.length===0){alert("Aucun majeur trouvé.");return;}if(confirm("Importer "+newM.length+" majeur(s) ?"))onUpdateMajeurs(null,null,null,[...cur,...newM]);e.target.value="";}}/></label>
           <span style={{fontSize:10,color:C.mid}}>Colonnes: Prénom, Nom, Site, Tél parent, Tél jeune, Email ASE, Date début, Date fin</span>
         </div>
         {(appMajeurs||MAJEURS).map(m=><div key={m.id} style={{...S.card,marginBottom:8}}>
@@ -1287,7 +1312,7 @@ if(!dateFrom||!dateTo)return alert("Sélectionnez une période");
 if(!chkRapportsJ&&!chkRapportsH&&!chkRapportsSite&&!chkRdv&&!chkEvenements)return alert("Sélectionnez au moins un type de données");
 setExporting(true);
 try{
-const XLSX=await import("xlsx");
+const XLSX=await loadXLSX();
 const wb=XLSX.utils.book_new();
 if(chkRapportsJ){
   const sorted=fRFiltered.sort((a,b)=>a.date.localeCompare(b.date));
