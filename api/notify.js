@@ -1,20 +1,20 @@
-// Fichier : api/notify.js — à placer dans le dossier /api à la racine du projet Vercel.
+// Fichier : api/notify.js — fonction Vercel (format ES module, requis car package.json contient "type": "module").
 // Envoi d'un e-mail via Resend à chaque événement déclaré dans l'app PDSR.
-// La clé reste côté serveur : elle n'est jamais visible dans le navigateur.
-// Recommandé : définir RESEND_API_KEY dans Vercel (Settings > Environment Variables)
-// et supprimer la clé en clair ci-dessous si le dépôt Git est public.
+// La clé n'est JAMAIS dans le code : elle est lue depuis la variable d'environnement
+// RESEND_API_KEY (Vercel > Settings > Environment Variables). Ne jamais la remettre ici :
+// le dépôt est public et Resend révoque automatiquement toute clé exposée sur GitHub.
 
-const RESEND_KEY = process.env.RESEND_API_KEY || "re_EXdpopAG_2HTXQXYuKcpJmRRf6Lq4V2Tz";
-
-// Destinataires des alertes — à ajuster.
 const DESTINATAIRES = ["jeanpierregardenatpdsr@gmail.com", "lmarcille1962@gmail.com", "omarngom21@yahoo.com"];
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST uniquement" });
+
+  const RESEND_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_KEY) return res.status(500).json({ error: "RESEND_API_KEY manquante dans Vercel (Settings > Environment Variables)" });
 
   try {
     const b = req.body || {};
@@ -45,4 +45,4 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
-};
+}
