@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, PageBreak, HeadingLevel } from "docx";
-import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, MapPin, Printer, Download, Package, Wrench } from "lucide-react";
+import { Home, Users, FileText, Calendar, AlertTriangle, BarChart2, LogOut, Menu, X, ChevronRight, Plus, Check, ChevronLeft, Search, Bell, MapPin, Printer, Download, Package, Wrench } from "lucide-react";
 
 /* Chargement robuste de SheetJS : 3 CDN en cascade, script classique (window.XLSX), sans dependance npm */
 let _xlsxPromise = null;
@@ -89,7 +89,7 @@ function Login({onLogin,users}){
   </div>);
 }
 
-const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"projets",label:"Projets personnalisés",icon:FileText},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar},{id:"rapport-site",label:"Rapport de site",icon:FileText},{id:"intendance",label:"Intendance",icon:Package},{id:"pres-educ",label:"Présences éducateurs",icon:Calendar},{id:"espace-rh",label:"Espace éducateur",icon:FileText}];
+const NAV=[{id:"dashboard",label:"Tableau de bord",icon:Home},{id:"jeunes",label:"Jeunes",icon:Users},{id:"majeurs",label:"Majeurs",icon:Users},{id:"rapports",label:"Rapports journaliers",icon:FileText},{id:"presences",label:"Présences",icon:Calendar},{id:"evenements",label:"Événements",icon:AlertTriangle},{id:"transmissions",label:"Transmissions",icon:FileText},{id:"rapport-hebdo",label:"Rapport hebdo",icon:BarChart2},{id:"recherche",label:"Recherche",icon:Search},{id:"projets",label:"Projets personnalisés",icon:FileText},{id:"agenda",label:"Agenda / RDV",icon:Calendar},{id:"export",label:"Export Excel",icon:Download},{id:"admin",label:"Administration",icon:Users},{id:"planning",label:"Planning",icon:Calendar},{id:"rapport-site",label:"Rapport de site",icon:FileText},{id:"intendance",label:"Intendance",icon:Package},{id:"pres-educ",label:"Présences éducateurs",icon:Calendar},{id:"espace-rh",label:"Espace éducateur",icon:FileText}];
 
 const GlobalFX=()=><style>{`
 @keyframes pgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -133,11 +133,12 @@ function Sidebar({page,onNav,user,onLogout,open,onClose}){
   </>);
 }
 
-function Topbar({title,onMenu,onBack}){
+function Topbar({title,onMenu,onBack,unread,onBell}){
   return(<header style={{position:"sticky",top:0,zIndex:30,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",borderBottom:"1px solid "+C.border,padding:"0 18px",height:58,display:"flex",alignItems:"center",gap:12,boxShadow:"0 2px 16px rgba(0,0,0,0.05)"}}>
     {onBack?<button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,color:C.gold,fontWeight:700,fontSize:13,fontFamily:"inherit",padding:0}}><ChevronLeft size={19}/>Retour</button>
     :<button onClick={onMenu} style={{background:"none",border:"none",cursor:"pointer",color:C.dark,padding:4,display:"flex"}}><Menu size={21}/></button>}
     <h1 style={{fontSize:16,fontWeight:800,color:C.dark,margin:0,flex:1}}>{title}</h1>
+    {onBell&&<button onClick={onBell} style={{position:"relative",background:"none",border:"none",cursor:"pointer",color:C.dark,padding:6,display:"flex"}}><Bell size={20}/>{unread>0&&<span style={{position:"absolute",top:0,right:2,background:"#C62828",color:"#fff",fontSize:9,fontWeight:900,minWidth:15,height:15,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unread>99?"99+":unread}</span>}</button>}
   </header>);
 }
 
@@ -1638,6 +1639,120 @@ function EspaceRH({user,docs,users,onAdd,onSign,onDelete}){
   </div>);
 }
 
+
+const NOTIF_META={eig:{ic:"\u26a0\ufe0f",c:"#C62828",l:"EIG"},evenement:{ic:"\u2757",c:"#E65100",l:"\u00c9v\u00e9nement"},intendance_urgente:{ic:"\ud83d\udd27",c:"#C62828",l:"Intendance urgente"},intendance:{ic:"\ud83d\udce6",c:"#1565C0",l:"Intendance"},rapport_site:{ic:"\ud83d\udccb",c:"#2E7D32",l:"Rapport de site"},transmission:{ic:"\ud83d\udcdd",c:"#6A1B9A",l:"Transmission"}};
+function NotifPanel({notifs,user,onClose,onReadAll}){
+  const list=[...(notifs||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const fmt=(iso)=>{if(!iso)return"";const d=new Date(iso);const p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+" "+p(d.getHours())+":"+p(d.getMinutes());};
+  return(<>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",zIndex:70}}/>
+    <div style={{position:"fixed",top:0,right:0,width:"min(360px,92vw)",height:"100vh",background:"#fff",zIndex:71,boxShadow:"-8px 0 32px rgba(0,0,0,0.25)",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10}}>
+        <Bell size={18} color={C.gold}/><span style={{fontWeight:800,fontSize:15,color:C.dark,flex:1}}>Notifications</span>
+        <button onClick={onReadAll} style={{background:"none",border:"1px solid "+C.border,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,color:C.mid,cursor:"pointer",fontFamily:"inherit"}}>Tout marquer lu</button>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:C.mid,padding:4,display:"flex"}}><X size={17}/></button>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"10px 12px"}}>
+        {list.length===0&&<div style={{textAlign:"center",color:C.light,fontSize:13,padding:30}}>Aucune notification</div>}
+        {list.map(n=>{const m=NOTIF_META[n.type]||{ic:"\ud83d\udd14",c:C.mid,l:n.type};const lu=(n.readBy||[]).includes(user.id);return(
+          <div key={n.id} style={{borderLeft:"4px solid "+m.c,background:lu?"#fafafa":"#FFF8E1",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+              <span style={{fontSize:14}}>{m.ic}</span>
+              <span style={{fontSize:12,fontWeight:800,color:m.c}}>{n.titre||m.l}</span>
+              {!lu&&<span style={{width:8,height:8,borderRadius:4,background:"#C62828",marginLeft:"auto"}}/>}
+            </div>
+            {n.message&&<div style={{fontSize:12.5,color:C.dark,marginBottom:4,whiteSpace:"pre-wrap"}}>{n.message}</div>}
+            <div style={{fontSize:10.5,color:C.light,fontWeight:600}}>{fmt(n.date)}{n.site?" \u00b7 "+n.site:""}{n.author?" \u00b7 "+n.author:""}</div>
+          </div>);})}
+      </div>
+    </div>
+  </>);
+}
+
+function Transmissions({user,items,onAdd,onMarkLu}){
+  const SITES=["Djilass","Fatick"];
+  const defSite=user.site&&user.site!=="Tous"?user.site:SITES[0];
+  const[site,setSite]=useState(defSite);
+  const[txt,setTxt]=useState("");
+  const[filter,setFilter]=useState(user.site&&user.site!=="Tous"?user.site:"Tous");
+  const fmt=(iso)=>{if(!iso)return"";const d=new Date(iso);const p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes());};
+  const list=(items||[]).filter(t=>filter==="Tous"||t.site===filter).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const submit=()=>{if(!txt.trim())return;onAdd({site,texte:txt.trim()});setTxt("");};
+  return(<div>
+    <div style={{...S.card,marginBottom:14}}>
+      <div style={{fontWeight:800,fontSize:15,color:C.dark,marginBottom:10}}>Nouvelle consigne</div>
+      <div style={{display:"flex",gap:8,marginBottom:8}}>
+        {SITES.map(x=><button key={x} onClick={()=>setSite(x)} style={{flex:1,padding:"8px 0",borderRadius:8,border:"1.5px solid "+(site===x?C.gold:C.border),background:site===x?C.gold+"22":"#fff",fontWeight:700,fontSize:13,color:site===x?C.goldDark:C.mid,cursor:"pointer",fontFamily:"inherit"}}>{x}</button>)}
+      </div>
+      <textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder="Consigne courte pour la rel\u00e8ve (traitement donn\u00e9, incident, visite pr\u00e9vue\u2026)" style={{width:"100%",boxSizing:"border-box",border:"1.5px solid "+C.border,borderRadius:10,padding:10,fontSize:13.5,fontFamily:"inherit",resize:"vertical",marginBottom:8}}/>
+      <button onClick={submit} disabled={!txt.trim()} style={{width:"100%",padding:"10px 0",borderRadius:10,border:"none",background:txt.trim()?C.gold:C.border,color:"#fff",fontWeight:800,fontSize:13.5,cursor:txt.trim()?"pointer":"default",fontFamily:"inherit"}}>Consigner ({site})</button>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:12}}>
+      {["Tous",...SITES].map(x=><button key={x} onClick={()=>setFilter(x)} style={{flex:1,padding:"7px 0",borderRadius:8,border:"1.5px solid "+(filter===x?C.primary:C.border),background:filter===x?C.primary+"18":"#fff",fontWeight:700,fontSize:12.5,color:filter===x?C.primary:C.mid,cursor:"pointer",fontFamily:"inherit"}}>{x}</button>)}
+    </div>
+    {list.length===0&&<div style={{...S.card,textAlign:"center",color:C.light,fontSize:13}}>Aucune transmission</div>}
+    {list.map(t=>{const luParMoi=(t.luPar||[]).some(l=>l&&l.name===user.name);return(
+      <div key={t.id} style={{...S.card,marginBottom:10,borderLeft:"4px solid "+(t.site==="Djilass"?C.gold:"#6A1B9A")}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,fontWeight:900,color:"#fff",background:t.site==="Djilass"?C.gold:"#6A1B9A",borderRadius:5,padding:"2px 8px"}}>{t.site}</span>
+          <span style={{fontSize:12,fontWeight:700,color:C.dark}}>{t.author}</span>
+          <span style={{fontSize:11,color:C.light,fontWeight:600,marginLeft:"auto"}}>{fmt(t.date)}</span>
+        </div>
+        <div style={{fontSize:13.5,color:C.dark,whiteSpace:"pre-wrap",marginBottom:8}}>{t.texte}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          {(t.luPar||[]).map((l,i)=><span key={i} title={fmt(l.date)} style={{fontSize:10.5,fontWeight:700,color:"#2E7D32",background:"#E8F5E9",borderRadius:5,padding:"2px 7px"}}>\u2713 {l.name}</span>)}
+          {!luParMoi&&<button onClick={()=>onMarkLu(t.id)} style={{marginLeft:"auto",padding:"4px 12px",borderRadius:8,border:"1.5px solid #2E7D32",background:"#fff",color:"#2E7D32",fontWeight:800,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Marquer lu</button>}
+        </div>
+      </div>);})}
+  </div>);
+}
+
+function RechercheGlobale({user,rapports,evenements,transmissions,rapportsSite,intendance,jeunes,majeurs}){
+  const[q,setQ]=useState("");
+  const allP=[...(jeunes||[]),...(majeurs||[])];
+  const nomJ=(jid)=>{const j=allP.find(x=>String(x.id)===String(jid));return j?(j.prenom+" "+(j.nom||"")):"";};
+  const canSee=(jid)=>{const j=allP.find(x=>String(x.id)===String(jid));if(!j)return user.role!=="educateur";if(user.role==="educateur"){if(user.isEducMajeur&&j.id<100)return false;if(!user.isEducMajeur&&j.id>=100)return false;}if((user.role==="educateur"||user.role==="coordinateur_site")&&user.site&&user.site!=="Tous"&&j.site!==user.site)return false;return true;};
+  const needle=q.trim().toLowerCase();
+  const hit=(...fields)=>fields.some(f=>f&&String(f).toLowerCase().includes(needle));
+  const res=useMemo(()=>{
+    if(needle.length<2)return null;
+    const r={};
+    r.rapports=(rapports||[]).filter(x=>canSee(x.jeuneId)&&hit(x.observation,x.author,nomJ(x.jeuneId))).slice(-60).reverse();
+    r.evenements=(evenements||[]).filter(x=>canSee(x.jeuneId)&&hit(x.titre,x.description,x.author,nomJ(x.jeuneId))).slice(-60).reverse();
+    r.transmissions=(transmissions||[]).filter(x=>hit(x.texte,x.author,x.site)).slice(-60).reverse();
+    r.rapportsSite=(rapportsSite||[]).filter(x=>hit(x.site,x.contenu,x.texte,x.observations,x.author,x.auteur)).slice(-30).reverse();
+    r.intendance=(intendance||[]).filter(x=>hit(x.objet,x.description,x.auteur,x.site)).slice(-30).reverse();
+    return r;
+  },[needle,rapports,evenements,transmissions,rapportsSite,intendance]);
+  const Section=({titre,items,render})=>!items||items.length===0?null:(
+    <div style={{marginBottom:16}}>
+      <div style={{fontWeight:800,fontSize:13,color:C.goldDark,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>{titre} ({items.length})</div>
+      {items.map(render)}
+    </div>);
+  const line=(key,top,body,meta)=>(
+    <div key={key} style={{...S.card,padding:"10px 14px",marginBottom:8}}>
+      <div style={{fontSize:12.5,fontWeight:800,color:C.dark,marginBottom:2}}>{top}</div>
+      {body&&<div style={{fontSize:12.5,color:C.mid,whiteSpace:"pre-wrap",maxHeight:80,overflow:"hidden"}}>{body}</div>}
+      <div style={{fontSize:10.5,color:C.light,fontWeight:600,marginTop:4}}>{meta}</div>
+    </div>);
+  return(<div>
+    <div style={{...S.card,marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+      <Search size={18} color={C.gold}/>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un jeune, un mot, un auteur\u2026" autoFocus style={{flex:1,border:"none",outline:"none",fontSize:14.5,fontFamily:"inherit",background:"transparent"}}/>
+      {q&&<button onClick={()=>setQ("")} style={{background:"none",border:"none",cursor:"pointer",color:C.mid,display:"flex",padding:2}}><X size={15}/></button>}
+    </div>
+    {!res&&<div style={{textAlign:"center",color:C.light,fontSize:13,padding:20}}>Saisissez au moins 2 caract\u00e8res \u2014 la recherche couvre rapports journaliers, \u00e9v\u00e9nements, transmissions, rapports de site et intendance.</div>}
+    {res&&<>
+      <Section titre="Rapports journaliers" items={res.rapports} render={x=>line("r"+x.id,nomJ(x.jeuneId)||("ID "+x.jeuneId),x.observation,(x.date||"")+" \u00b7 "+(x.author||""))}/>
+      <Section titre="\u00c9v\u00e9nements ind\u00e9sirables" items={res.evenements} render={x=>line("e"+x.id,(x.titre||"\u00c9v\u00e9nement")+(nomJ(x.jeuneId)?" \u2014 "+nomJ(x.jeuneId):""),x.description,(x.date||"")+" \u00b7 "+(x.author||"")+(x.gravite?" \u00b7 "+x.gravite:""))}/>
+      <Section titre="Transmissions" items={res.transmissions} render={x=>line("t"+x.id,(x.site||"")+" \u2014 "+(x.author||""),x.texte,(x.date||"").slice(0,10))}/>
+      <Section titre="Rapports de site" items={res.rapportsSite} render={x=>line("s"+x.id,(x.site||"Site")+(x.semaine?" \u00b7 "+x.semaine:""),x.contenu||x.texte||x.observations||"",(x.date||x.createdAt||"").slice(0,10)+" \u00b7 "+(x.author||x.auteur||""))}/>
+      <Section titre="Intendance" items={res.intendance} render={x=>line("i"+x.id,(x.objet||"Demande")+(x.site?" \u00b7 "+x.site:""),x.description,(x.createdAt||"").slice(0,10)+" \u00b7 "+(x.auteur||"")+(x.urgence?" \u00b7 "+x.urgence:""))}/>
+      {res.rapports.length===0&&res.evenements.length===0&&res.transmissions.length===0&&res.rapportsSite.length===0&&res.intendance.length===0&&<div style={{textAlign:"center",color:C.light,fontSize:13,padding:20}}>Aucun r\u00e9sultat pour \u00ab {q} \u00bb</div>}
+    </>}
+  </div>);
+}
+
 export default function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const[viewAs,setViewAs]=useState(null);
@@ -1646,11 +1761,11 @@ export default function App(){
   const[rapports,setRapports0]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences0]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements0]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
   const[appUsers,setAppUsers]=useState(USERS);
   const[appJeunes,setAppJeunes]=useState(JEUNES);
- const[rapportsSite,setRapportsSite]=useState([]);const[intendance,setIntendance0]=useState([]);const[suiviEduc,setSuiviEduc0]=useState([]);const[purgeMarks,setPurgeMarks]=useState({});
+ const[rapportsSite,setRapportsSite]=useState([]);const[intendance,setIntendance0]=useState([]);const[suiviEduc,setSuiviEduc0]=useState([]);const[purgeMarks,setPurgeMarks]=useState({});const[notifs,setNotifs0]=useState([]);const[transmissions,setTransmissions0]=useState([]);const[notifOpen,setNotifOpen]=useState(false);
   const[agenda,setAgenda0]=useState(lsData?.agenda||[]);
   const _stampDiff=(prev,arr,keyf)=>{const kf=keyf||(x=>x&&x.id);const pm={};(Array.isArray(prev)?prev:[]).forEach(x=>{const k=x?kf(x):null;if(k!=null){const{updatedAt,...rest}=x;pm[k]=JSON.stringify(rest);}});return(Array.isArray(arr)?arr:[]).map(x=>{const k=x?kf(x):null;if(k==null)return x;const{updatedAt,...rest}=x;return pm[k]===JSON.stringify(rest)?x:{...x,updatedAt:nowSrv()};});};
   const _mkStamped=(setter,keyf)=>(next)=>setter(prev=>_stampDiff(prev,typeof next==="function"?next(prev):next,keyf));
-  const setRapports=_mkStamped(setRapports0),setEvenements=_mkStamped(setEvenements0),setAgenda=_mkStamped(setAgenda0),setIntendance=_mkStamped(setIntendance0),setSuiviEduc=_mkStamped(setSuiviEduc0),setPresences=_mkStamped(setPresences0,x=>x&&x.jeuneId!=null&&x.date?x.jeuneId+"|"+x.date:null);
+  const setRapports=_mkStamped(setRapports0),setEvenements=_mkStamped(setEvenements0),setAgenda=_mkStamped(setAgenda0),setIntendance=_mkStamped(setIntendance0),setSuiviEduc=_mkStamped(setSuiviEduc0),setNotifs=_mkStamped(setNotifs0),setTransmissions=_mkStamped(setTransmissions0),setPresences=_mkStamped(setPresences0,x=>x&&x.jeuneId!=null&&x.date?x.jeuneId+"|"+x.date:null);
  const[loginLogs,setLoginLogs]=useState(lsData?.loginLogs||[]);
 const[deletionLogs,setDeletionLogs]=useState(lsData?.deletionLogs||[]);
 const[appMajeurs,setAppMajeurs]=useState(lsData?.majeurs||MAJEURS);
@@ -1686,11 +1801,13 @@ useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;i
   const rpm={...((remote&&remote.purgeMarks)||{}),...purgeMarks};const mergedDL=union(deletionLogs,remote&&remote.deletionLogs,"__none__").filter(x=>!rpm.deletionLogs||(x&&x.date||"")>rpm.deletionLogs);const llW=(loginLogs||[]).filter(x=>!rpm.loginLogs||(x&&x.date||"")>rpm.loginLogs);
   const mergedInt=union(intendance,remote&&remote.intendance,"intendance");
   const mergedSE=union(suiviEduc,remote&&remote.suiviEduc,"suiviEduc");
+  const mergedNo=union(notifs,remote&&remote.notifs,"notif");
+  const mergedTr=union(transmissions,remote&&remote.transmissions,"transmission");
   const remoteUsersArr=Array.isArray(remote&&remote.users)?remote.users:(remote&&remote.users)?Object.values(remote.users):null;
   const isRosterAdmin=user&&(user.role==="directeur"||user.role==="chef_service"||user.isAdmin);
   const mergedU=(()=>{const m={};(remoteUsersArr||[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(Array.isArray(appUsers)?appUsers:[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});return Object.values(m);})();
   const usersToWrite=isRosterAdmin?mergedU:(remoteUsersArr||appUsers);
-  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:usersToWrite,agenda:mergedA,loginLogs:llW,majeurs:appMajeurs,rapportsSite,intendance:mergedInt,suiviEduc:mergedSE,purgeMarks:rpm,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
+  const data={rapports:mergedR,presences:mergedP,evenements:mergedE,jeunes:appJeunes,users:usersToWrite,agenda:mergedA,loginLogs:llW,majeurs:appMajeurs,rapportsSite,intendance:mergedInt,suiviEduc:mergedSE,notifs:mergedNo,transmissions:mergedTr,purgeMarks:rpm,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs:mergedDL,projets,sejourConfig,etabConfig};
   const dataVide=mergedR.length===0&&mergedE.length===0;
   if(dataVide&&fbWasNonEmpty.current&&!purgeIntent.current){console.warn("[PDSR] Envoi vide bloqué.");return;}
   if(mergedR.length||mergedE.length)fbWasNonEmpty.current=true;
@@ -1698,8 +1815,8 @@ useEffect(()=>{if(fbSkip.current){fbSkip.current=false;return;}if(!user)return;i
   if(dataVide&&purgeIntent.current){purgeIntent.current=false;fbWasNonEmpty.current=false;}
   if(!dataVide)fbSet("backups/jour_"+today,{...data,_ts:new Date().toISOString()});
   if(mergedR.length>(rapports||[]).length||mergedE.length>(evenements||[]).length){fbSkip.current=true;setRapports0(mergedR);setEvenements0(mergedE);setAgenda0(mergedA);}
-};window._fbFlush=_doSave;window._fbTimer=setTimeout(_doSave,2000);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,intendance,suiviEduc,purgeMarks,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig]);
-const loadFb=(d)=>{if(!d){return;}const cnt=(v)=>!v?0:(Array.isArray(v)?v.filter(Boolean).length:Object.keys(v).length);const remoteR=cnt(d.rapports),remoteE=cnt(d.evenements);const localR=(rapports||[]).length,localE=(evenements||[]).length;const purgedRecently=d.purgeMarks&&d.purgeMarks.lastPurge&&(Date.now()-new Date(d.purgeMarks.lastPurge).getTime())<86400000;if(remoteR===0&&remoteE===0&&(localR>0||localE>0)&&!purgedRecently){console.warn("[PDSR] Cloud vide ignoré : on conserve les données locales et on répare le cloud.");fbWasNonEmpty.current=true;fbReadOK.current=true;fbLoaded.current=true;const heal={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,intendance,suiviEduc,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig};fbSet("data",heal);fbSet("backups/jour_"+new Date().toISOString().slice(0,10),{...heal,_ts:new Date().toISOString()});return;}fbSkip.current=true;const remoteNonEmpty=remoteR||remoteE;if(remoteNonEmpty)fbWasNonEmpty.current=true;const tombL=new Set();toArr(d.deletionLogs).forEach(t=>{if(t&&t.origId!=null)tombL.add(t.type+":"+t.origId);});const mrg=(remArr,prev,type)=>{const m={};(remArr||[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(prev||[]).forEach(x=>{if(!x||x.id==null)return;const cur=m[x.id];if(!cur){m[x.id]=x;return;}if((x.updatedAt||"")>(cur.updatedAt||""))m[x.id]=x;});return Object.values(m).filter(x=>!tombL.has(type+":"+x.id));};if(d.rapports&&(remoteR>0||localR===0))setRapports0(prev=>mrg(toArr(d.rapports),prev,"rapport"));if(d.presences)setPresences0(Array.isArray(d.presences)?d.presences.filter(Boolean):(typeof d.presences==="object"?Object.values(d.presences).filter(Boolean):INIT_PRESENCES));if(d.evenements&&(remoteE>0||localE===0))setEvenements0(prev=>mrg(toArr(d.evenements),prev,"evenement"));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda0(toArr(d.agenda));const pmk=d.purgeMarks||{};if(d.purgeMarks)setPurgeMarks(prev=>({...prev,...d.purgeMarks}));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs).filter(x=>!pmk.loginLogs||(x&&x.date||"")>pmk.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.intendance)setIntendance0(toArr(d.intendance));if(d.suiviEduc)setSuiviEduc0(toArr(d.suiviEduc));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs).filter(x=>!pmk.deletionLogs||(x&&x.date||"")>pmk.deletionLogs));if(d.projets)setProjets(toArr(d.projets));if(d.sejourConfig)setSejourConfig(d.sejourConfig);if(d.etabConfig)setEtabConfig(prev=>({...ETAB_DEFAULT,...prev,...d.etabConfig}));fbLoaded.current=true;};
+};window._fbFlush=_doSave;window._fbTimer=setTimeout(_doSave,2000);},[rapports,presences,evenements,appUsers,appJeunes,agenda,loginLogs,appMajeurs,rapportsSite,intendance,suiviEduc,purgeMarks,appDjiPlan,appFatPlan,deletionLogs,projets,sejourConfig,notifs,transmissions]);
+const loadFb=(d)=>{if(!d){return;}const cnt=(v)=>!v?0:(Array.isArray(v)?v.filter(Boolean).length:Object.keys(v).length);const remoteR=cnt(d.rapports),remoteE=cnt(d.evenements);const localR=(rapports||[]).length,localE=(evenements||[]).length;const purgedRecently=d.purgeMarks&&d.purgeMarks.lastPurge&&(Date.now()-new Date(d.purgeMarks.lastPurge).getTime())<86400000;if(remoteR===0&&remoteE===0&&(localR>0||localE>0)&&!purgedRecently){console.warn("[PDSR] Cloud vide ignoré : on conserve les données locales et on répare le cloud.");fbWasNonEmpty.current=true;fbReadOK.current=true;fbLoaded.current=true;const heal={rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,intendance,suiviEduc,notifs,transmissions,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig};fbSet("data",heal);fbSet("backups/jour_"+new Date().toISOString().slice(0,10),{...heal,_ts:new Date().toISOString()});return;}fbSkip.current=true;const remoteNonEmpty=remoteR||remoteE;if(remoteNonEmpty)fbWasNonEmpty.current=true;const tombL=new Set();toArr(d.deletionLogs).forEach(t=>{if(t&&t.origId!=null)tombL.add(t.type+":"+t.origId);});const mrg=(remArr,prev,type)=>{const m={};(remArr||[]).forEach(x=>{if(x&&x.id!=null)m[x.id]=x;});(prev||[]).forEach(x=>{if(!x||x.id==null)return;const cur=m[x.id];if(!cur){m[x.id]=x;return;}if((x.updatedAt||"")>(cur.updatedAt||""))m[x.id]=x;});return Object.values(m).filter(x=>!tombL.has(type+":"+x.id));};if(d.rapports&&(remoteR>0||localR===0))setRapports0(prev=>mrg(toArr(d.rapports),prev,"rapport"));if(d.presences)setPresences0(Array.isArray(d.presences)?d.presences.filter(Boolean):(typeof d.presences==="object"?Object.values(d.presences).filter(Boolean):INIT_PRESENCES));if(d.evenements&&(remoteE>0||localE===0))setEvenements0(prev=>mrg(toArr(d.evenements),prev,"evenement"));if(d.jeunes){const jArr=toArr(d.jeunes);setAppJeunes(jArr.map(fj=>{const base=JEUNES.find(x=>x.id===fj.id)||fj;return{...base,...fj};}));}if(d.agenda)setAgenda0(toArr(d.agenda));const pmk=d.purgeMarks||{};if(d.purgeMarks)setPurgeMarks(prev=>({...prev,...d.purgeMarks}));if(d.loginLogs)setLoginLogs(toArr(d.loginLogs).filter(x=>!pmk.loginLogs||(x&&x.date||"")>pmk.loginLogs));if(d.users)setAppUsers(prev=>{const fb=toArr(d.users);return fb.map(fu=>{const base=USERS.find(x=>x.id===fu.id)||fu;return{...base,...fu};});});if(d.majeurs)setAppMajeurs(toArr(d.majeurs));if(d.rapportsSite)setRapportsSite(toArr(d.rapportsSite));if(d.intendance)setIntendance0(toArr(d.intendance));if(d.suiviEduc)setSuiviEduc0(toArr(d.suiviEduc));if(d.notifs)setNotifs0(prev=>mrg(toArr(d.notifs),prev,"notif"));if(d.transmissions)setTransmissions0(prev=>mrg(toArr(d.transmissions),prev,"transmission"));if(d.djiPlan&&typeof d.djiPlan==="object")setAppDjiPlan(prev=>({...DJI_PLAN,...d.djiPlan}));if(d.fatPlan&&typeof d.fatPlan==="object")setAppFatPlan(prev=>({...FAT_PLAN,...d.fatPlan}));if(d.deletionLogs)setDeletionLogs(toArr(d.deletionLogs).filter(x=>!pmk.deletionLogs||(x&&x.date||"")>pmk.deletionLogs));if(d.projets)setProjets(toArr(d.projets));if(d.sejourConfig)setSejourConfig(d.sejourConfig);if(d.etabConfig)setEtabConfig(prev=>({...ETAB_DEFAULT,...prev,...d.etabConfig}));fbLoaded.current=true;};
 useEffect(()=>{let cancelled=false;let tries=0;
   const attempt=async()=>{tries++;let ok=false,val=null;
     try{const r=await fetch(FB_URL+"/data.json?auth="+FB_SECRET);if(r.ok){val=await r.json();ok=true;}}catch(e){}
@@ -1713,7 +1830,7 @@ useEffect(()=>{let cancelled=false;let tries=0;
 // Migration : normalise les jeuneId de l'agenda en numérique (corrige les anciens enregistrements en chaîne)
 useEffect(()=>{setAgenda(prev=>{if(!Array.isArray(prev))return prev;let changed=false;const next=prev.map(a=>{if(a&&typeof a.jeuneId==="string"&&a.jeuneId!==""&&!isNaN(Number(a.jeuneId))){changed=true;return{...a,jeuneId:Number(a.jeuneId)};}return a;});return changed?next:prev;});},[]);
 // Données globales : sauvegarde, restauration, synchronisation
-const collectData=()=>({rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig,_exportTs:new Date().toISOString()});
+const collectData=()=>({rapports,presences,evenements,jeunes:appJeunes,users:appUsers,agenda,loginLogs,majeurs:appMajeurs,rapportsSite,intendance,suiviEduc,notifs,transmissions,djiPlan:appDjiPlan,fatPlan:appFatPlan,deletionLogs,projets,sejourConfig,etabConfig,_exportTs:new Date().toISOString()});
 const restoreData=(d)=>{if(!d)return;
   const dedup=(arr,keyf)=>{const seen=new Set();const out=[];for(const x of arr){if(!x)continue;const k=keyf(x);if(seen.has(k))continue;seen.add(k);out.push(x);}return out;};
   const inR=d.rapports?toArr(d.rapports):[];const inE=d.evenements?toArr(d.evenements):[];
@@ -1745,13 +1862,15 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
   const liveUser=(()=>{if(!user)return user;const cu=(appUsers||[]).find(x=>x.id===user.id);if(!cu)return user;return{...user,role:cu.role||user.role,site:cu.site||user.site,isAdmin:user.isAdmin||cu.isAdmin,disabled:cu.disabled};})();
   const effUser=viewAs||liveUser;
   const isImpersonating=!!viewAs;
+  const pushNotif=(type,titre,message,site)=>{const ts=new Date().toISOString();setNotifs(p=>[...(p||[]),{id:Date.now()+Math.floor(Math.random()*1e4),type,titre,message:message||"",site:site||"",date:ts,updatedAt:ts,author:(user&&user.name)||"",readBy:[]}].slice(-400));};
   const addR=({jeuneId,date,observation,typeContact,traitementAdministre})=>{const now=new Date();const pad2=n=>String(n).padStart(2,"0");const ts=now.getFullYear()+"-"+pad2(now.getMonth()+1)+"-"+pad2(now.getDate())+"T"+pad2(now.getHours())+":"+pad2(now.getMinutes())+":"+pad2(now.getSeconds());setRapports(p=>[...p,{id:Date.now(),jeuneId,date,observation,typeContact:typeContact||"journee",traitementAdministre:traitementAdministre||null,createdAt:ts,horodatage:ts,author:user?.name||"?",authorId:user?.id??null}]);};
   const logDeletion=(type,item)=>{const allJ=[...JEUNES,...MAJEURS,...(appMajeurs||[])];const j=allJ.find(x=>x.id===item.jeuneId);setDeletionLogs(prev=>[{id:Date.now(),origId:item.id,type,date:new Date().toISOString(),by:user?.name||"?",itemDate:item.date||"?",jeune:j?(j.prenom+" "+(j.nom||"")):("ID:"+item.jeuneId),detail:type==="rapport"?(item.observation||"").substring(0,100):(item.titre||item.description||"").substring(0,100)},...prev].slice(0,1000));};
   const delR=(id)=>{const item=rapports.find(r=>r.id===id);if(item)logDeletion("rapport",item);setRapports(p=>p.filter(r=>r.id!==id));};
   const delE=(id)=>{const item=evenements.find(e=>e.id===id);if(item)logDeletion("evenement",item);setEvenements(p=>p.filter(e=>e.id!==id));};
-  const addE=ev=>{const now=new Date();const pad2=n=>String(n).padStart(2,"0");const ts=now.getFullYear()+"-"+pad2(now.getMonth()+1)+"-"+pad2(now.getDate())+"T"+pad2(now.getHours())+":"+pad2(now.getMinutes())+":"+pad2(now.getSeconds());const newEv={id:Date.now(),...ev,author:user?.name||"?",authorId:user?.id??null,createdAt:ts,horodatage:ts};setEvenements(p=>[...p,newEv]);try{const _p=[...(appJeunes||[]),...(appMajeurs||[])];const _j=_p.find(x=>x&&x.id===ev.jeuneId);const _nom=_j?(_j.prenom+" "+(_j.nom||"")):"";fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({titre:ev.titre||"",description:ev.description||"",gravite:ev.gravite||"",eig:!!ev.eig,site:ev.site||(_j&&_j.site)||"",jeune:_nom,author:(user&&user.name)||"",date:ev.date||""})}).catch(()=>{});}catch(e){}try{const j=(appJeunes||[]).find(j2=>j2.id===ev.jeuneId);const nom=j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId);const bom="\ufeff";const rows=[["Date","Jeune","Titre","Description","Gravit\u00e9"],[ev.date||"",nom,ev.titre||"",ev.description||"",ev.gravite||"normal"]];const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incident_"+((ev.date||"").replace(/-/g,""))+"_"+nom.replace(/\s/g,"_")+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}catch(e){console.error("Auto CSV export error:",e);}};
+  const addE=ev=>{const now=new Date();const pad2=n=>String(n).padStart(2,"0");const ts=now.getFullYear()+"-"+pad2(now.getMonth()+1)+"-"+pad2(now.getDate())+"T"+pad2(now.getHours())+":"+pad2(now.getMinutes())+":"+pad2(now.getSeconds());const newEv={id:Date.now(),...ev,author:user?.name||"?",authorId:user?.id??null,createdAt:ts,horodatage:ts};setEvenements(p=>[...p,newEv]);try{const _p=[...(appJeunes||[]),...(appMajeurs||[])];const _j=_p.find(x=>x&&x.id===ev.jeuneId);const _nom=_j?(_j.prenom+" "+(_j.nom||"")):"";fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({titre:ev.titre||"",description:ev.description||"",gravite:ev.gravite||"",eig:!!ev.eig,site:ev.site||(_j&&_j.site)||"",jeune:_nom,author:(user&&user.name)||"",date:ev.date||""})}).catch(()=>{});const _eig=!!ev.eig||/grave|critique/i.test(ev.gravite||"");pushNotif(_eig?"eig":"evenement",_eig?"EIG d\u00e9clar\u00e9":"\u00c9v\u00e9nement ind\u00e9sirable",(_nom?_nom+" \u2014 ":"")+(ev.titre||""),ev.site||(_j&&_j.site)||"");}catch(e){}try{const j=(appJeunes||[]).find(j2=>j2.id===ev.jeuneId);const nom=j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId);const bom="\ufeff";const rows=[["Date","Jeune","Titre","Description","Gravit\u00e9"],[ev.date||"",nom,ev.titre||"",ev.description||"",ev.gravite||"normal"]];const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incident_"+((ev.date||"").replace(/-/g,""))+"_"+nom.replace(/\s/g,"_")+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}catch(e){console.error("Auto CSV export error:",e);}};
   const changeP=(jeuneId,date,statut)=>setPresences(p=>[...p.filter(p2=>!(p2.jeuneId===jeuneId&&p2.date===date)),{id:`${jeuneId}-${date}`,jeuneId,date,statut}]);
-  const TITLES={dashboard:"Tableau de bord",jeunes:"Jeunes","jeune-detail":sel?`${sel.prenom} ${sel.nom}`:"Fiche",rapports:"Rapports journaliers",presences:"Présences",evenements:"Événements indésirables","rapport-hebdo":"Rapport hebdomadaire",projets:"Projets personnalisés","rapport-site":"Rapport de site","espace-rh":"Espace éducateur"};
+  const visibleNotifs=(notifs||[]).filter(n=>{if(effUser.role==="directeur"||effUser.role==="chef_service")return true;if(effUser.site&&effUser.site!=="Tous"&&n.site&&n.site!==effUser.site)return false;return true;});
+  const TITLES={transmissions:"Cahier de transmissions",recherche:"Recherche globale",dashboard:"Tableau de bord",jeunes:"Jeunes","jeune-detail":sel?`${sel.prenom} ${sel.nom}`:"Fiche",rapports:"Rapports journaliers",presences:"Présences",evenements:"Événements indésirables","rapport-hebdo":"Rapport hebdomadaire",projets:"Projets personnalisés","rapport-site":"Rapport de site","espace-rh":"Espace éducateur"};
   return(<div style={{fontFamily:"'Nunito',sans-serif",background:`linear-gradient(180deg,${C.sableLight} 0%,#F5EFE0 40%,#EDE4D0 100%)`,minHeight:"100vh",display:"flex",flexDirection:"column"}}>
     <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}html{scroll-behavior:smooth}body{margin:0}button{position:relative;transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);cursor:pointer}button:hover:not(:disabled){transform:translateY(-2px) scale(1.02);filter:brightness(1.06);box-shadow:0 6px 16px rgba(0,0,0,0.14)}button:active:not(:disabled){transform:translateY(1px) scale(0.95);transition-duration:0.08s;animation:ripple 0.45s ease-out}button:focus-visible{outline:2px solid ${C.gold};outline-offset:2px}button:disabled{transform:none!important;box-shadow:none!important;filter:grayscale(0.4) opacity(0.7);cursor:not-allowed}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}input,select,textarea{transition:all 0.2s ease}input:focus,select:focus,textarea:focus{border-color:${C.gold}!important;outline:none;box-shadow:0 0 0 3px ${C.goldGlow}}::selection{background:${C.goldLight};color:${C.dark}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${C.sableDark};border-radius:99px}::-webkit-scrollbar-thumb:hover{background:${C.gold}}@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}@keyframes countUp{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}@keyframes cardEnter{from{opacity:0;transform:translateY(16px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes ripple{0%{box-shadow:0 0 0 0 ${C.goldGlow}}100%{box-shadow:0 0 0 12px rgba(184,134,11,0)}}select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B7050' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px!important}`}</style>
     {isImpersonating&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:60,background:"linear-gradient(90deg,"+C.gold+","+C.goldDark+")",color:"#fff",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"center",gap:12,fontSize:13,fontWeight:700,boxShadow:"0 2px 12px rgba(0,0,0,0.2)"}}><span>👁 Vue de <b>{effUser.name}</b> ({effUser.role==="educateur"?"Éducateur"+(effUser.site&&effUser.site!=="Tous"?" · "+effUser.site:""):effUser.role==="coordinateur_site"?"Coordinateur":effUser.role==="directeur"?"Directeur":"Chef de service"})</span><button onClick={()=>{setViewAs(null);setPage("admin");setSel(null);}} style={{background:"#fff",color:C.goldDark,border:"none",borderRadius:8,padding:"4px 12px",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Quitter</button></div>}
@@ -1759,7 +1878,8 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
     <div style={{height:isImpersonating?34:0}}/>
     <Sidebar page={page} onNav={setPage} user={effUser} onLogout={()=>{setViewAs(null);setUser(null);}} open={open} onClose={()=>setOpen(false)}/>
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
-      <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined}/>
+      <Topbar title={TITLES[page]||"PDSR"} onMenu={()=>setOpen(true)} onBack={page==="jeune-detail"?()=>setPage("jeunes"):undefined} unread={visibleNotifs.filter(n=>!(n.readBy||[]).includes(effUser.id)).length} onBell={()=>setNotifOpen(o=>!o)}/>
+      {notifOpen&&<NotifPanel notifs={visibleNotifs} user={effUser} onClose={()=>setNotifOpen(false)} onReadAll={()=>{const ts=new Date().toISOString();setNotifs(p=>(p||[]).map(n=>(n.readBy||[]).includes(effUser.id)?n:{...n,readBy:[...(n.readBy||[]),effUser.id],updatedAt:ts}));}}/>}
       <main style={{flex:1,overflowY:"auto"}}><GlobalFX/><div key={page} className="pg-anim">
         {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
@@ -1770,9 +1890,11 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP}/>}
         {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} onUpdateAll={setEvenements}/>}
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={effUser}/>}
-        {page==="intendance"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<Intendance user={effUser} items={intendance} onSave={r=>{setIntendance(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"intendance",origId:id,date:new Date().toISOString()}]);setIntendance(prev=>prev.filter(x=>x.id!==id));}}/>}
+        {page==="transmissions"&&<Transmissions user={effUser} items={transmissions} onAdd={({site,texte})=>{const ts=new Date().toISOString();setTransmissions(p=>[...(p||[]),{id:Date.now(),site,texte,author:(effUser&&effUser.name)||"",date:ts,updatedAt:ts,luPar:[]}]);pushNotif("transmission","Nouvelle transmission",String(texte).slice(0,100),site);}} onMarkLu={(id)=>{const ts=new Date().toISOString();setTransmissions(p=>(p||[]).map(t=>t.id===id?{...t,luPar:[...(t.luPar||[]),{name:(effUser&&effUser.name)||"",date:ts}],updatedAt:ts}:t));}}/>}
+        {page==="recherche"&&<RechercheGlobale user={effUser} rapports={rapports} evenements={evenements} transmissions={transmissions} rapportsSite={rapportsSite} intendance={intendance} jeunes={appJeunes} majeurs={appMajeurs}/>}
+        {page==="intendance"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<Intendance user={effUser} items={intendance} onSave={r=>{const isNew=!(intendance||[]).some(x=>x.id===r.id);setIntendance(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif(r.urgence==="Urgente"?"intendance_urgente":"intendance",r.urgence==="Urgente"?"Demande d\u2019intendance URGENTE":"Demande d\u2019intendance",(r.objet||"")+(r.description?" \u2014 "+String(r.description).slice(0,80):""),r.site||"");}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"intendance",origId:id,date:new Date().toISOString()}]);setIntendance(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="pres-educ"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<PresEduc user={effUser} users={appUsers} entries={suiviEduc} onSave={r=>{setSuiviEduc(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"suiviEduc",origId:id,date:new Date().toISOString()}]);setSuiviEduc(prev=>prev.filter(x=>x.id!==id));}}/>}
-        {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
+        {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{const isNew=!(rapportsSite||[]).some(x=>x.id===r.id);setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif("rapport_site","Rapport de site d\u00e9pos\u00e9",(r.site||"")+((r.semaine||r.periode)?" \u00b7 "+(r.semaine||r.periode):""),r.site||"");}} onDelete={id=>{setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
       {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin currentUser={effUser} isAdmin={effUser.isAdmin} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>{setPurgeMarks(p=>({...p,loginLogs:nowSrv()}));setLoginLogs([]);}} onPurgeDeletionLogs={()=>{setPurgeMarks(p=>({...p,deletionLogs:nowSrv()}));setDeletionLogs([]);}} presences={presences} onChangeP={changeP} agenda={agenda} onUpdateAgenda={setAgenda} projets={projets} rapportsSite={rapportsSite} onUpdateRapportsSite={setRapportsSite} onDeleteRapport={delR} onUpdateRapport={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} onDeleteEvenement={delE} onUpdateEvenements={setEvenements}/>}
         {page==="rapport-hebdo"&&<RapportHebdo user={effUser} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
