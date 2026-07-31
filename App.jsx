@@ -38,6 +38,7 @@ let _clkOff=0;
 const _captureClock=(r)=>{try{const h=r&&r.headers&&r.headers.get("date");if(h){const st=Date.parse(h);if(!isNaN(st)){const off=st-Date.now();if(Math.abs(off-_clkOff)>2000)_clkOff=off;}}}catch(e){}};
 const nowSrv=()=>new Date(Date.now()+_clkOff).toISOString();
 const fbSet=async(p,d)=>{try{const r=await fetch(FB_URL+"/"+p+".json?auth="+FB_SECRET,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});_captureClock(r);}catch(e){}};
+const _curBundle=(()=>{try{const sc=document.querySelector('script[src*="/assets/"]');return sc?sc.getAttribute("src"):null;}catch(e){return null;}})();
 const fetchTO=(url,opts,ms)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||15000);return fetch(url,{...(opts||{}),signal:c.signal}).finally(()=>clearTimeout(t));};
 const fbGet=async(p)=>{try{let r=await fetch(FB_URL+"/"+p+".json?auth="+FB_SECRET);_captureClock(r);return await r.json();}catch(e){return null;}};
 
@@ -1759,7 +1760,7 @@ function RechercheGlobale({user,rapports,evenements,transmissions,rapportsSite,i
 export default function App(){
   const[user,setUser]=useState(null),[ page,setPage]=useState("dashboard"),[ open,setOpen]=useState(false),[ sel,setSel]=useState(null);
   const[viewAs,setViewAs]=useState(null);
-  const[syncMsg,setSyncMsg]=useState(null);const[cloudReady,setCloudReady]=useState(false);
+  const[syncMsg,setSyncMsg]=useState(null);const[cloudReady,setCloudReady]=useState(false);const[updateReady,setUpdateReady]=useState(false);
   const lsData=loadLS();
   const[rapports,setRapports0]=useState(Array.isArray(lsData?.rapports)?lsData.rapports:INIT_RAPPORTS),[ presences,setPresences0]=useState(Array.isArray(lsData?.presences)?lsData.presences:INIT_PRESENCES),[ evenements,setEvenements0]=useState(Array.isArray(lsData?.evenements)?lsData.evenements:INIT_EV);
   const[appUsers,setAppUsers]=useState(USERS);
@@ -1842,6 +1843,16 @@ const refreshAll=useCallback(async(auto)=>{
   }catch(e){if(!silent){setSyncMsg("\u00c9chec de synchronisation \u2014 donn\u00e9es locales conserv\u00e9es");setTimeout(()=>setSyncMsg(""),3500);}}
   setRefreshing(false);
 },[refreshing,loadFb]);
+useEffect(()=>{
+  if(!_curBundle)return;
+  let stop=false;
+  const check=async()=>{try{const r=await fetchTO(window.location.origin+"/index.html?u="+Date.now(),{cache:"no-store"},10000);if(!r.ok)return;const h=await r.text();const m=h.match(/src="(\/assets\/[^"]+\.js)"/);if(m&&m[1]&&m[1]!==_curBundle&&!stop)setUpdateReady(true);}catch(e){}};
+  const iv=setInterval(check,300000);
+  const vh=()=>{if(document.visibilityState==="visible")check();};
+  document.addEventListener("visibilitychange",vh);
+  check();
+  return()=>{stop=true;clearInterval(iv);document.removeEventListener("visibilitychange",vh);};
+},[]);
 useEffect(()=>{const h=()=>{if(document.visibilityState==="visible"&&user)refreshAll(true);};document.addEventListener("visibilitychange",h);return()=>document.removeEventListener("visibilitychange",h);},[refreshAll,user]);
 useEffect(()=>{let cancelled=false;let tries=0;
   const attempt=async()=>{tries++;let ok=false,val=null;
@@ -1900,6 +1911,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
     <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}html{scroll-behavior:smooth}body{margin:0}button{position:relative;transition:all 0.25s cubic-bezier(0.34,1.56,0.64,1);cursor:pointer}button:hover:not(:disabled){transform:translateY(-2px) scale(1.02);filter:brightness(1.06);box-shadow:0 6px 16px rgba(0,0,0,0.14)}button:active:not(:disabled){transform:translateY(1px) scale(0.95);transition-duration:0.08s;animation:ripple 0.45s ease-out}button:focus-visible{outline:2px solid ${C.gold};outline-offset:2px}button:disabled{transform:none!important;box-shadow:none!important;filter:grayscale(0.4) opacity(0.7);cursor:not-allowed}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}input,select,textarea{transition:all 0.2s ease}input:focus,select:focus,textarea:focus{border-color:${C.gold}!important;outline:none;box-shadow:0 0 0 3px ${C.goldGlow}}::selection{background:${C.goldLight};color:${C.dark}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${C.sableDark};border-radius:99px}::-webkit-scrollbar-thumb:hover{background:${C.gold}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes slideIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}@keyframes countUp{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}@keyframes cardEnter{from{opacity:0;transform:translateY(16px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes ripple{0%{box-shadow:0 0 0 0 ${C.goldGlow}}100%{box-shadow:0 0 0 12px rgba(184,134,11,0)}}select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B7050' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px!important}`}</style>
     {isImpersonating&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:60,background:"linear-gradient(90deg,"+C.gold+","+C.goldDark+")",color:"#fff",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"center",gap:12,fontSize:13,fontWeight:700,boxShadow:"0 2px 12px rgba(0,0,0,0.2)"}}><span>👁 Vue de <b>{effUser.name}</b> ({effUser.role==="educateur"?"Éducateur"+(effUser.site&&effUser.site!=="Tous"?" · "+effUser.site:""):effUser.role==="coordinateur_site"?"Coordinateur":effUser.role==="directeur"?"Directeur":"Chef de service"})</span><button onClick={()=>{setViewAs(null);setPage("admin");setSel(null);}} style={{background:"#fff",color:C.goldDark,border:"none",borderRadius:8,padding:"4px 12px",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Quitter</button></div>}
+    {updateReady&&<div onClick={async()=>{try{if(window._fbTimer){clearTimeout(window._fbTimer);window._fbTimer=null;}if(window._fbFlush&&fbReadOK.current)await window._fbFlush();}catch(e){}window.location.reload();}} style={{position:"fixed",top:0,left:0,right:0,zIndex:80,background:"#1B5E20",color:"#fff",padding:"11px 14px",fontSize:13.5,fontWeight:800,textAlign:"center",cursor:"pointer",boxShadow:"0 2px 12px rgba(0,0,0,0.35)"}}>Nouvelle version disponible \u2014 toucher ici pour mettre \u00e0 jour</div>}
     {user&&!cloudReady&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:75,background:"#B26A00",color:"#fff",padding:"7px 14px",fontSize:12.5,fontWeight:700,textAlign:"center"}}>Connexion \u00e0 la base en cours \u2014 vos saisies sont conserv\u00e9es sur cet appareil et partiront automatiquement</div>}
     {syncMsg&&<div style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:70,background:C.dark,color:"#fff",padding:"10px 18px",borderRadius:12,fontSize:13,fontWeight:700,boxShadow:C.shadowLg,animation:"fadeIn 0.3s ease"}}>{syncMsg}</div>}
     <div style={{height:isImpersonating?34:0}}/>
