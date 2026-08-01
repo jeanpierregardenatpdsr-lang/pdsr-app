@@ -1559,6 +1559,11 @@ function PresEduc({user,users,entries,onSave,onDelete}){
   const STATUTS=["Présent","Absent","Maladie","Retard","Congé","Repos"];
   const SC={"Présent":"#2E7D32","Absent":"#C62828","Maladie":"#E65100","Retard":"#F9A825","Congé":"#1565C0","Repos":"#6A1B9A"};
   const presList=(entries||[]).filter(e=>e&&e.kind==="presence");
+  const[regMois,setRegMois]=useState(today.slice(0,7));
+  const regJours=useMemo(()=>{const[y,m]=regMois.split("-").map(Number);const n=new Date(y,m,0).getDate();return Array.from({length:n},(_,i)=>regMois+"-"+String(i+1).padStart(2,"0"));},[regMois]);
+  const regIdx=useMemo(()=>{const idx={};presList.forEach(p=>{if(p.site===mySite&&p.date&&p.date.slice(0,7)===regMois)idx[p.date+"|"+p.educName]=p;});return idx;},[presList,mySite,regMois]);
+  const exportRegCSV=()=>{const head=["Éducateur",...regJours.map(d=>d.slice(8)),"Présent","Absent/Maladie"];const rows=educs.map(ed=>{const line=regJours.map(d=>{const x=regIdx[d+"|"+ed.name];return x?x.statut:"";});return[ed.name,...line,line.filter(x=>x==="Présent").length,line.filter(x=>x==="Absent"||x==="Maladie").length];});const csv=[head,...rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="registre_educateurs_"+mySite+"_"+regMois+".csv";a.click();URL.revokeObjectURL(a.href);};
+
   const getP=(name)=>presList.find(p=>p.date===date&&p.educName===name&&p.site===mySite);
   const setP=(name,statut)=>{const ex=getP(name);onSave({id:ex?ex.id:"se_"+date+"_"+mySite+"_"+name.replace(/\W/g,""),kind:"presence",date,educName:name,site:mySite,statut,note:ex?ex.note:"",auteur:user.name,createdAt:ex?ex.createdAt:new Date().toISOString()});};
   const setNote=(name,note)=>{const ex=getP(name);if(!ex)return;onSave({...ex,note});};
@@ -1582,6 +1587,36 @@ function PresEduc({user,users,entries,onSave,onDelete}){
         </div>
         {p&&p.statut&&p.statut!=="Présent"&&<input value={p.note||""} onChange={e=>setNote(ed.name,e.target.value)} placeholder="Précision (motif, heure…)" style={{...S.inp,marginTop:8,padding:"8px 12px",fontSize:13}}/>}
       </div>);})}
+    </div>
+    <div style={S.card}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <div style={{fontWeight:800,color:C.dark,fontSize:15}}>Registre mensuel — {mySite}</div>
+        <input type="month" value={regMois} onChange={e=>setRegMois(e.target.value)} style={{...S.inp,width:"auto",padding:"7px 10px",fontSize:13}}/>
+        <button onClick={exportRegCSV} style={{marginLeft:"auto",padding:"6px 12px",borderRadius:8,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontWeight:700,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Exporter CSV</button>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        {STATUTS.map(st=><span key={st} style={{fontSize:10.5,fontWeight:800,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,borderRadius:3,background:SC[st],display:"inline-block"}}/> {st}</span>)}
+      </div>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <table style={{borderCollapse:"collapse",fontSize:11,minWidth:regJours.length*26+220}}>
+          <thead><tr>
+            <th style={{position:"sticky",left:0,background:C.white,textAlign:"left",padding:"6px 8px",borderBottom:"2px solid "+C.border,color:C.mid,zIndex:1}}>Éducateur</th>
+            {regJours.map(d=><th key={d} style={{padding:"4px 2px",borderBottom:"2px solid "+C.border,color:C.light,fontWeight:700,minWidth:22,textAlign:"center"}}>{parseInt(d.slice(8),10)}</th>)}
+            <th style={{padding:"4px 6px",borderBottom:"2px solid "+C.border,color:C.success,fontWeight:800}}>P</th>
+            <th style={{padding:"4px 6px",borderBottom:"2px solid "+C.border,color:C.danger,fontWeight:800}}>A</th>
+          </tr></thead>
+          <tbody>
+            {educs.map(ed=>{const line=regJours.map(d=>regIdx[d+"|"+ed.name]||null);const nbP=line.filter(x=>x&&x.statut==="Présent").length;const nbA=line.filter(x=>x&&(x.statut==="Absent"||x.statut==="Maladie")).length;return(
+              <tr key={ed.id}>
+                <td style={{position:"sticky",left:0,background:C.white,padding:"5px 8px",fontWeight:700,color:C.dark,whiteSpace:"nowrap",borderBottom:"1px solid "+C.border,zIndex:1}}>{ed.name}</td>
+                {line.map((x,i)=><td key={i} title={x?(x.statut+(x.note?" — "+x.note:"")):""} style={{textAlign:"center",borderBottom:"1px solid "+C.border,padding:"3px 1px"}}>{x?<span style={{display:"inline-block",width:16,height:16,lineHeight:"16px",borderRadius:4,background:SC[x.statut]||C.border,color:"#fff",fontSize:9.5,fontWeight:900}}>{x.statut==="Repos"?"Re":x.statut[0]}</span>:<span style={{color:C.border}}>·</span>}</td>)}
+                <td style={{textAlign:"center",fontWeight:800,color:C.success,borderBottom:"1px solid "+C.border}}>{nbP}</td>
+                <td style={{textAlign:"center",fontWeight:800,color:C.danger,borderBottom:"1px solid "+C.border}}>{nbA}</td>
+              </tr>);})}
+          </tbody>
+        </table>
+      </div>
+      <div style={{fontSize:10.5,color:C.light,marginTop:8}}>Un point (·) signifie qu'aucun statut n'a été coché ce jour-là. Survolez une case pour lire le motif.</div>
     </div>
     <div style={S.card}>
       <div style={{fontWeight:800,color:C.dark,fontSize:15,marginBottom:12}}>Rapport concernant un éducateur</div>
