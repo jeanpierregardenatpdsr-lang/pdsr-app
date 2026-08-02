@@ -689,6 +689,58 @@ function Planning({djiPlan,fatPlan,site,user,onUpdate}){
 
 function exportIncidentsXLSX(evenements,jeunes){const rows=[["Date","Jeune","Titre","Description","Gravité","Horodatage","N° Suivi","Catégorie"]];(evenements||[]).forEach(ev=>{const j=jeunes.find(j2=>j2.id===ev.jeuneId);rows.push([ev.date,j?(j.prenom+" "+(j.nom||"")):("ID:"+ev.jeuneId),ev.titre,ev.description,ev.gravite||"normal"]);});const bom="﻿";const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="incidents_pdsr_"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
+
+function ArchivesSejours({currentUser}){
+  const allowed=currentUser&&(currentUser.role==="directeur"||currentUser.role==="chef_service");
+  const[idx,setIdx]=useState(null);const[busy,setBusy]=useState("");const[err,setErr]=useState("");
+  const load=async()=>{try{const r=await fetchTO(FB_URL+"/archivesFiles/index.json?auth="+FB_SECRET,null,15000);const v=await r.json();setIdx(v?Object.values(v).sort((a,b)=>(b.date||"").localeCompare(a.date||"")):[]);}catch(e){setErr("Chargement de la liste impossible — vérifiez la connexion");setIdx([]);}};
+  useEffect(()=>{if(allowed)load();},[]);
+  const onFile=async(e)=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;setErr("");
+    if(f.size>5*1024*1024){setErr("Fichier trop volumineux : "+(f.size/1048576).toFixed(1)+" Mo (maximum 5 Mo)");return;}
+    setBusy("Envoi de "+f.name+"…");
+    try{
+      const b64=await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(String(rd.result).split(",")[1]);rd.onerror=()=>rej(new Error("lecture"));rd.readAsDataURL(f);});
+      const id="arc_"+Date.now();
+      const meta={id,name:f.name,size:f.size,type:f.type||"application/octet-stream",date:new Date().toISOString(),by:currentUser.name||""};
+      let r=await fetchTO(FB_URL+"/archivesFiles/blobs/"+id+".json?auth="+FB_SECRET,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...meta,data:b64})},60000);
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      r=await fetchTO(FB_URL+"/archivesFiles/index/"+id+".json?auth="+FB_SECRET,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(meta)},15000);
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      setBusy("");load();
+    }catch(ex){setBusy("");setErr("Envoi échoué — réessayez");}
+  };
+  const dl=async(m)=>{setBusy("Téléchargement de "+m.name+"…");setErr("");
+    try{const r=await fetchTO(FB_URL+"/archivesFiles/blobs/"+m.id+".json?auth="+FB_SECRET,null,60000);const v=await r.json();if(!v||!v.data)throw new Error("introuvable");
+      const bin=atob(v.data);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+      const blob=new Blob([arr],{type:m.type||"application/octet-stream"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=m.name;a.click();URL.revokeObjectURL(a.href);setBusy("");
+    }catch(ex){setBusy("");setErr("Téléchargement impossible");}};
+  const del=async(m)=>{if(!confirm("Supprimer définitivement « "+m.name+" » ?"))return;setBusy("Suppression…");
+    try{await fetchTO(FB_URL+"/archivesFiles/blobs/"+m.id+".json?auth="+FB_SECRET,{method:"DELETE"},20000);await fetchTO(FB_URL+"/archivesFiles/index/"+m.id+".json?auth="+FB_SECRET,{method:"DELETE"},15000);setBusy("");load();}catch(ex){setBusy("");setErr("Suppression impossible");}};
+  const fmtSize=(n)=>n>1048576?(n/1048576).toFixed(1)+" Mo":Math.round((n||0)/1024)+" Ko";
+  const fmtD=(iso)=>{if(!iso)return"";const d=new Date(iso);const p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear();};
+  if(!allowed)return <div style={S.card}>Section réservée au directeur et aux chefs de service.</div>;
+  return(<div style={S.card}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{fontWeight:800,color:C.dark,fontSize:15}}>Archives des séjours précédents</div>
+      <label style={{marginLeft:"auto",...S.btnP,cursor:"pointer",padding:"8px 16px",fontSize:12.5}}>Ajouter un fichier<input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" onChange={onFile} style={{display:"none"}}/></label>
+    </div>
+    <div style={{fontSize:11.5,color:C.light,marginBottom:10}}>Formats Excel, CSV, PDF ou Word · 5 Mo maximum · visible uniquement par le directeur et les chefs de service.</div>
+    {busy&&<div style={{fontSize:12.5,fontWeight:700,color:C.goldDark,marginBottom:8}}>{busy}</div>}
+    {err&&<div style={{fontSize:12.5,fontWeight:700,color:C.danger,marginBottom:8}}>{err}</div>}
+    {idx===null&&<div style={{color:C.light,fontSize:13}}>Chargement…</div>}
+    {idx&&idx.length===0&&!err&&<div style={{color:C.light,fontSize:13}}>Aucune archive. Ajoutez le premier fichier pour démarrer.</div>}
+    {idx&&idx.map(m=>(
+      <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid "+C.border,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:160}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,wordBreak:"break-all"}}>{m.name}</div>
+          <div style={{fontSize:10.5,color:C.light,fontWeight:600}}>{fmtSize(m.size)} · déposé le {fmtD(m.date)} par {m.by}</div>
+        </div>
+        <button onClick={()=>dl(m)} style={{padding:"6px 13px",borderRadius:8,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontWeight:800,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Télécharger</button>
+        <button onClick={()=>del(m)} style={{padding:"6px 13px",borderRadius:8,border:"1px solid "+C.danger,background:"transparent",color:C.danger,fontWeight:800,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Supprimer</button>
+      </div>))}
+  </div>);
+}
+
 function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
   const[tab,setTab]=useState("educs");const[logTab,setLogTab]=useState("connexions");
   const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");const[editRapDate,setEditRapDate]=useState("");const[editRapJeune,setEditRapJeune]=useState("");
@@ -731,7 +783,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"sejours",l:"Séjours"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:9,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -863,6 +915,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
       </div>)}
     </div>}
 
+    {tab==="archives"&&<ArchivesSejours currentUser={currentUser}/>}
     {tab==="sejours"&&(()=>{
       const calcW=(d)=>{if(!d)return"—";const d0=new Date(d+"T00:00:00");if(isNaN(d0))return"—";const diff=Math.floor((Date.now()-d0.getTime())/86400000);if(diff<0)return"démarre le "+d;const sw=Math.floor(diff/7)+1;return"semaine "+String(sw).padStart(2,"0")+" en cours";};
       return(<div>
