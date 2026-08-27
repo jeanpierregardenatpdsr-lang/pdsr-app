@@ -214,7 +214,7 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
       ))}
     </div>
     {user.role!=="educateur"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-      {[{l:"Site Fatick",n:JEUNES.filter(j=>j.site==="Fatick").length,e:"🏖️",c:C.gold},{l:"Site Djilass",n:JEUNES.filter(j=>j.site==="Djilass").length,e:"🌿",c:C.orange}].map((s,i)=>(
+      {[{l:"Site Fatick",n:(jeunes||JEUNES).filter(j=>j.site==="Fatick").length,e:"🏖️",c:C.gold},{l:"Site Djilass",n:(jeunes||JEUNES).filter(j=>j.site==="Djilass").length,e:"🌿",c:C.orange}].map((s,i)=>(
         <div key={i} onClick={()=>setPage("jeunes")} style={{...S.card,borderTop:"none",borderLeft:"4px solid "+s.c,padding:"16px",marginBottom:0,cursor:"pointer",animation:"fadeIn 0.4s ease 0.3s both"}}>
           <div style={{fontSize:24,marginBottom:4}}>{s.e}</div><div style={{fontWeight:900,fontSize:20,color:C.dark}}>{s.n} jeunes</div><div style={{fontSize:11,color:C.light,fontWeight:700,marginTop:2}}>{s.l}</div>
         </div>
@@ -231,7 +231,7 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
 
 function JeunesList({user,jeunes,presences,onSelect,onNav,onUpdateJeune}){
   const[q,setQ]=useState(""),[ site,setSite]=useState("Tous");
-  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?JEUNES.filter(j=>user.site==="Tous"||j.site===user.site):JEUNES;
+  const pool=(jeunes&&jeunes.length!==undefined)?jeunes:JEUNES;const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
   const vis=vj.filter(j=>{const m=`${j.prenom} ${j.nom}`.toLowerCase().includes(q.toLowerCase());const s=site==="Tous"||j.site===site;return m&&s;});
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <div style={{display:"flex",gap:8,marginBottom:14}}>
@@ -328,8 +328,8 @@ function Rapports({user,rapports,onSave,onDelete,onUpdate,onPatch,majeurs,jeunes
   </div>);
 }
 
-function Presences({user,presences,onCP}){
-  const vj=(user.role==="educateur"||user.role==="coordinateur_site")?JEUNES.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site)):JEUNES;
+function Presences({user,presences,onCP,jeunes}){
+  const pool=(jeunes&&jeunes.length!==undefined)?jeunes:JEUNES;const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site)):pool;
   const[site,setSite]=useState("Tous");
   const vis=site==="Tous"?vj:vj.filter(j=>j.site===site);
   const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};
@@ -347,8 +347,8 @@ function Presences({user,presences,onCP}){
   </div>);
 }
 
-function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll}){
-  const allPool=[...JEUNES,...(majeurs||MAJEURS)];const vj=(user.role==="educateur"||user.role==="coordinateur_site")?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
+function Evenements({user,evenements,onAdd,onDelete,majeurs,onUpdateAll,jeunes}){
+  const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];const vj=(user.role==="educateur"||user.role==="coordinateur_site")?(user.isEducMajeur?allPool.filter(j=>(j.id>=100)&&(user.site==="Tous"||j.site===user.site)):allPool.filter(j=>(j.id<100)&&(user.site==="Tous"||j.site===user.site))):allPool;
   const[jid,setJid]=useState(vj[0]?.id||"");
   const[titre,setTitre]=useState(""),[ desc,setDesc]=useState(""),[ grav,setGrav]=useState("Léger"),[ date2,setDate2]=useState(today),[categ,setCateg]=useState("jeune"),[typeEv,setTypeEv]=useState("incident");
   const[eig,setEig]=useState(false),[ eigOpen,setEigOpen]=useState(null);
@@ -2154,8 +2154,8 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
         {page==="jeune-detail"&&sel&&<JeuneDetail jeune={appJeunes.find(j=>j.id===sel.id)||sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="rapports"&&<Rapports user={effUser} rapports={rapports} jeunes={appJeunes} onSave={addR} onDelete={delR} onUpdate={(id,field,val)=>setRapports(p=>p.map(r=>r.id===id?{...r,[field]:val}:r))} onPatch={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} majeurs={appMajeurs}/>}
-        {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP}/>}
-        {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} onUpdateAll={setEvenements}/>}
+        {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP} jeunes={appJeunes}/>}
+        {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} jeunes={appJeunes} onUpdateAll={setEvenements}/>}
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={effUser}/>}
         {page==="transmissions"&&<Transmissions user={effUser} items={transmissions} onAdd={({site,texte})=>{const ts=new Date().toISOString();setTransmissions(p=>[...(p||[]),{id:Date.now(),site,texte,author:(effUser&&effUser.name)||"",date:ts,updatedAt:ts,luPar:[]}]);pushNotif("transmission","Nouvelle transmission",String(texte).slice(0,100),site);}} onMarkLu={(id)=>{const ts=new Date().toISOString();setTransmissions(p=>(p||[]).map(t=>t.id===id?{...t,luPar:[...(t.luPar||[]),{name:(effUser&&effUser.name)||"",date:ts}],updatedAt:ts}:t));}}/>}
         {page==="recherche"&&<RechercheGlobale user={effUser} rapports={rapports} evenements={evenements} transmissions={transmissions} rapportsSite={rapportsSite} intendance={intendance} jeunes={appJeunes} majeurs={appMajeurs}/>}
