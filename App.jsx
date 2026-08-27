@@ -60,6 +60,16 @@ const FAT_PLAN={"2026-03-12":{a:false,b:true,n:"Arrivée"},"2026-03-13":{a:false
 const localDay=(dt=new Date())=>{const x=new Date(dt.getTime()-dt.getTimezoneOffset()*60000);return x.toISOString().slice(0,10);};
 const today=localDay();
 const ETAB_DEFAULT={raisonSociale:"Association PDSR",sousTitre:"Promotion Des Séjours De Remobilisation",finess:"930032727",directeur:"Laurent Marcille",adresse:"",ville:"",tel:"",email:"",sites:["Fatick","Djilass"]};
+const PROJ_DOM_MINEUR=[{k:"dev",l:"Développement, santé physique et psychique"},{k:"fam",l:"Relations avec la famille et les tiers"},{k:"sco",l:"Scolarité et vie sociale"}];
+const PROJ_DOM_MAJEUR=[{k:"ins",l:"Insertion professionnelle et formation"},{k:"log",l:"Logement, ressources et autonomie"},{k:"san",l:"Santé et accès aux droits"},{k:"soc",l:"Réseau social et familial"}];
+const OBJ_STATUTS=["En cours","Atteint","Partiellement atteint","Abandonné"];
+const PROJ_CFG_DEFAULT={delaiDipc:15,delaiObjectifs:30,delaiRevision:75,delaiBilan:150};
+const projCfg=(ec)=>({...PROJ_CFG_DEFAULT,...((ec||{}).projet||{})});
+const isoToday=()=>new Date().toISOString().slice(0,10);
+const normDate=(s)=>{if(!s)return"";const t=String(s).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(t))return t;const m=t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?(m[3]+"-"+m[2]+"-"+m[1]):"";};
+const addDays=(iso,n)=>{const b=normDate(iso);if(!b)return"";const d=new Date(b+"T12:00:00");if(isNaN(d.getTime()))return"";d.setDate(d.getDate()+Number(n||0));return d.toISOString().slice(0,10);};
+const echStatut=(due,fait)=>{if(fait)return{l:"Fait",bg:"#E8F5E9",c:"#2E7D32"};if(!due)return{l:"Non calculable",bg:"#F5F5F5",c:"#8B7050"};if(due<isoToday())return{l:"En retard",bg:"#FFEBEE",c:"#C62828"};return{l:"À venir",bg:"#FFF8E1",c:"#B8860B"};};
+const projEcheances=(j,p,ec)=>{const cfg=projCfg(ec);const d0=(j&&j.dateDebut)||"";const objs=(p&&p.objectifs)||[];const revs=(p&&p.revisions)||[];return[{k:"dipc",l:"DIPC remis",due:addDays(d0,cfg.delaiDipc),fait:(p&&p.dipcRemisLe)||""},{k:"obj",l:"Objectifs posés",due:addDays(d0,cfg.delaiObjectifs),fait:objs.length?(objs[0].creeLe||(p&&p.dateElaboration)||isoToday()):""},{k:"rev",l:"Révision mi-séjour",due:addDays(d0,cfg.delaiRevision),fait:revs.length?revs[revs.length-1].date:""},{k:"bil",l:"Bilan de sortie",due:addDays(d0,cfg.delaiBilan),fait:(p&&p.bilan&&p.bilan.date)||""}];};
 const WD=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
 function getWeekDates(){const n=new Date(),m=new Date(n);m.setDate(n.getDate()-((n.getDay()+6)%7));return Array.from({length:7},(_,i)=>{const d=new Date(m);d.setDate(m.getDate()+i);return localDay(d);});}
 const WEEKDATES=getWeekDates();
@@ -589,45 +599,127 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
   </div>);
 }
 
-function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate}){
+function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,users}){
   const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];
   const vj=(user.role==="educateur"||user.role==="coordinateur_site")?allPool.filter(j=>(user.site==="Tous"||j.site===user.site)&&(user.isEducMajeur?j.id>=100:j.id<100)):allPool;
   const[siteF,setSiteF]=useState("Tous");
   const[selId,setSelId]=useState("");
-  const vis=vj.filter(j=>(siteF==="Tous"||j.site===siteF)&&j.statut!=="inactif");
+  const[oDom,setODom]=useState("");const[oTitre,setOTitre]=useState("");const[oMoyens,setOMoyens]=useState("");const[oRef,setORef]=useState("");const[oInd,setOInd]=useState("");const[oEch,setOEch]=useState("");const[showObj,setShowObj]=useState(false);
+  const[revType,setRevType]=useState("Révision mi-séjour");const[revNote,setRevNote]=useState("");const[showRev,setShowRev]=useState(false);
+  const vis=vj.filter(j=>(siteF==="Tous"||j.site===siteF)&&j.statut!=="inactif"&&j.statut!=="archivé");
   const sel=allPool.find(j=>String(j.id)===String(selId));
+  const isMaj=!!sel&&sel.id>=100;
+  const DOM=isMaj?PROJ_DOM_MAJEUR:PROJ_DOM_MINEUR;
+  const domLabel=(k)=>{const d=[...PROJ_DOM_MINEUR,...PROJ_DOM_MAJEUR].find(x=>x.k===k);return d?d.l:"Non rattaché";};
   const projet=(projets||[]).find(p=>String(p.jeuneId)===String(selId));
-  const todayStr=()=>new Date().toISOString().slice(0,10);
-  const upd=(patch)=>{if(projet){onUpdate(prev=>prev.map(p=>p.id===projet.id?{...p,...patch}:p));}else{onUpdate(prev=>[...(prev||[]),{id:Date.now(),jeuneId:+selId,dateElaboration:todayStr(),participationJeune:false,objectifs:[],revisions:[],creePar:user?.name||"?",...patch}]);}};
-  const addObj=()=>{const titre=prompt("Objectif (formulé avec le jeune) :");if(!titre||!titre.trim())return;const echeance=prompt("Échéance (AAAA-MM-JJ), facultatif :","")||"";upd({objectifs:[...(projet?.objectifs||[]),{id:Date.now(),titre:titre.trim(),echeance:echeance.trim(),statut:"En cours"}]});};
-  const updObj=(oid,patch)=>upd({objectifs:(projet?.objectifs||[]).map(o=>o.id===oid?{...o,...patch}:o)});
-  const delObj=(oid)=>{if(confirm("Supprimer cet objectif ?"))upd({objectifs:(projet?.objectifs||[]).filter(o=>o.id!==oid)});};
-  const addRevision=()=>{const note=prompt("Contenu de la révision / avenant :");if(note===null||!note.trim())return;upd({revisions:[...(projet?.revisions||[]),{id:Date.now(),date:todayStr(),par:user?.name||"?",note:note.trim()}]});};
-  const revisionDue=(p)=>{if(!p||!p.dateElaboration)return false;const last=(p.revisions&&p.revisions.length)?p.revisions[p.revisions.length-1].date:p.dateElaboration;const d=new Date(last);d.setMonth(d.getMonth()+6);return new Date()>d;};
+  const educs=(users||USERS).filter(u=>u.role==="educateur"||u.role==="coordinateur_site");
+  const upd=(patch)=>{if(projet){onUpdate(prev=>prev.map(p=>p.id===projet.id?{...p,...patch}:p));}else{onUpdate(prev=>[...(prev||[]),{id:Date.now(),jeuneId:+selId,dateElaboration:isoToday(),creePar:user?.name||"?",dipcRemisLe:"",participation:{dateEntretien:"",avisJeune:"",avisTitulaires:"",refus:false,motifRefus:""},objectifs:[],revisions:[],bilan:{date:"",par:"",texte:""},...patch}]);}};
+  const part=(projet&&projet.participation)||{};
+  const updPart=(k,v)=>upd({participation:{...part,[k]:v}});
+  const addObj=()=>{if(!oTitre.trim()){alert("Le libellé de l'objectif est obligatoire.");return;}if(!oDom){alert("Rattachez l'objectif à un domaine de vie.");return;}upd({objectifs:[...((projet&&projet.objectifs)||[]),{id:Date.now(),domaine:oDom,titre:oTitre.trim(),moyens:oMoyens.trim(),referent:oRef,indicateur:oInd.trim(),echeance:oEch,statut:"En cours",creeLe:isoToday(),creePar:user?.name||"?"}]});setODom("");setOTitre("");setOMoyens("");setORef("");setOInd("");setOEch("");setShowObj(false);};
+  const updObj=(oid,patch)=>upd({objectifs:((projet&&projet.objectifs)||[]).map(o=>o.id===oid?{...o,...patch}:o)});
+  const delObj=(oid)=>{if(confirm("Supprimer cet objectif ?"))upd({objectifs:((projet&&projet.objectifs)||[]).filter(o=>o.id!==oid)});};
+  const addRev=()=>{if(!revNote.trim()){alert("Le contenu de la révision est obligatoire.");return;}upd({revisions:[...((projet&&projet.revisions)||[]),{id:Date.now(),date:isoToday(),par:user?.name||"?",type:revType,note:revNote.trim()}]});setRevNote("");setShowRev(false);};
   const OBJ_ST={"En cours":{bg:"#E3F2FD",c:"#1565C0"},"Atteint":{bg:"#E8F5E9",c:"#2E7D32"},"Partiellement atteint":{bg:"#FFF8E1",c:"#B8860B"},"Abandonné":{bg:"#FFEBEE",c:"#C62828"}};
+  const ech=sel?projEcheances(sel,projet,etabConfig):[];
+  const partTracee=!!(part.dateEntretien&&((part.avisJeune||"").trim()||part.refus));
   return(<div style={{padding:"18px 14px",maxWidth:760,margin:"0 auto"}}>
     {user.role!=="educateur"&&<div style={{display:"flex",gap:7,marginBottom:14}}>{["Tous","Fatick","Djilass"].map(s=><button key={s} onClick={()=>{setSiteF(s);setSelId("");}} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${siteF===s?C.gold:C.border}`,background:siteF===s?C.gold:C.white,color:siteF===s?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>}
     <div style={{...S.card,marginBottom:14}}>
-      <label style={{...S.lbl}}>Jeune</label>
-      <select style={{...S.inp}} value={selId} onChange={e=>setSelId(e.target.value)}><option value="">-- Sélectionner --</option>{vis.map(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));return<option key={j.id} value={j.id}>{j.prenom} {j.nom} — {j.site}{p?(revisionDue(p)?" ⚠ révision due":" ✓"):" (aucun projet)"}</option>;})}</select>
+      <label style={{...S.lbl}}>Bénéficiaire</label>
+      <select style={{...S.inp}} value={selId} onChange={e=>setSelId(e.target.value)}><option value="">-- Sélectionner --</option>{vis.map(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));const late=p?projEcheances(j,p,etabConfig).some(x=>!x.fait&&x.due&&x.due<isoToday()):false;return<option key={j.id} value={j.id}>{j.prenom} {j.nom} — {j.site}{!p?" (aucun projet)":(late?" ⚠ échéance dépassée":" ✓")}</option>;})}</select>
     </div>
     {sel&&<div style={{...S.card,borderLeft:"4px solid "+C.gold}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:8}}>
-        <div><div style={{fontWeight:900,fontSize:16,color:C.dark}}>Projet personnalisé — {sel.prenom} {sel.nom}</div>{projet&&<div style={{fontSize:11,color:C.light,marginTop:2}}>Élaboré le {projet.dateElaboration} par {projet.creePar||"?"}</div>}</div>
-        {projet&&revisionDue(projet)&&<span style={{background:"#FFEBEE",color:"#C62828",borderRadius:20,padding:"4px 12px",fontSize:11,fontWeight:800}}>⚠ Révision &gt; 6 mois due</span>}
+      <div style={{marginBottom:10}}>
+        <div style={{fontWeight:900,fontSize:16,color:C.dark}}>Projet personnalisé — {sel.prenom} {sel.nom}</div>
+        <div style={{fontSize:11,color:C.light,marginTop:2}}>{isMaj?"Jeune majeur — contrat jeune majeur (art. L.222-5 CASF)":"Mineur — articulation avec le projet pour l'enfant (art. L.223-1-1 CASF)"}{projet?" · Élaboré le "+projet.dateElaboration+" par "+(projet.creePar||"?"):""}</div>
+        {!normDate(sel.dateDebut)&&<div style={{fontSize:11,color:"#C62828",fontWeight:700,marginTop:4}}>⚠ Date d'entrée non renseignée : les échéances ne peuvent pas être calculées.</div>}
       </div>
       {!projet&&<button onClick={()=>upd({})} style={{...S.btnP,justifyContent:"center"}}><Plus size={14}/>Créer le projet personnalisé</button>}
       {projet&&<>
-        <label style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:700,color:C.dark,marginBottom:12,cursor:"pointer"}}><input type="checkbox" checked={!!projet.participationJeune} onChange={e=>upd({participationJeune:e.target.checked})} style={{accentColor:C.gold}}/>Projet co-construit avec la participation du jeune (loi 2002-2)</label>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Objectifs ({(projet.objectifs||[]).length})</div><button onClick={addObj} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Objectif</button></div>
-        {(projet.objectifs||[]).map(o=>{const st=OBJ_ST[o.statut]||OBJ_ST["En cours"];const late=o.echeance&&o.statut==="En cours"&&o.echeance<todayStr();return(<div key={o.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f8f9fa",borderRadius:8,marginBottom:6,flexWrap:"wrap"}}>
-          <div style={{flex:1,minWidth:160}}><div style={{fontSize:13,fontWeight:700,color:C.dark}}>{o.titre}</div>{o.echeance&&<div style={{fontSize:10,color:late?"#C62828":C.light,fontWeight:late?800:600}}>Échéance : {o.echeance}{late?" — dépassée":""}</div>}</div>
-          <select value={o.statut} onChange={e=>updObj(o.id,{statut:e.target.value})} style={{...S.inp,width:"auto",fontSize:11,padding:"4px 8px",background:st.bg,color:st.c,fontWeight:700,border:"1px solid "+st.c}}><option>En cours</option><option>Atteint</option><option>Partiellement atteint</option><option>Abandonné</option></select>
-          <button onClick={()=>delObj(o.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:14}}>✕</button>
-        </div>);})}
-        {(projet.objectifs||[]).length===0&&<div style={{fontSize:12,color:C.light,padding:"8px 0"}}>Aucun objectif défini.</div>}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"16px 0 8px"}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Révisions / avenants ({(projet.revisions||[]).length})</div><button onClick={addRevision} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Révision</button></div>
-        {(projet.revisions||[]).slice().reverse().map(r=><div key={r.id} style={{padding:"8px 10px",background:C.goldLight,borderRadius:8,marginBottom:6}}><div style={{fontSize:10,fontWeight:700,color:C.goldDark}}>{r.date} — {r.par}</div><div style={{fontSize:12,color:C.dark,marginTop:2}}>{r.note}</div></div>)}
+        <div style={{marginBottom:14}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:6}}>Échéances du séjour</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{ech.map(e=>{const st=echStatut(e.due,e.fait);return<div key={e.k} style={{flex:"1 1 46%",minWidth:150,padding:"7px 10px",borderRadius:8,background:st.bg,border:"1px solid "+st.c+"33"}}><div style={{fontSize:11,fontWeight:800,color:C.dark}}>{e.l}</div><div style={{fontSize:10,color:C.mid}}>{e.due?"Échéance "+fmt(e.due):"—"}</div><div style={{fontSize:10,fontWeight:800,color:st.c,marginTop:2}}>{st.l}</div></div>;})}</div>
+        </div>
+        <div style={{marginBottom:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:6}}>Document individuel de prise en charge</div>
+          <label style={{...S.lbl}}>Remis au jeune / titulaires le</label>
+          <input type="date" style={{...S.inp}} value={projet.dipcRemisLe||""} onChange={e=>upd({dipcRemisLe:e.target.value})}/>
+          <div style={{fontSize:10,color:C.light,marginTop:4}}>Art. D.311 CASF : remise dans les 15 jours suivant l'admission.</div>
+        </div>
+        <div style={{marginBottom:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:2}}>Participation du jeune {partTracee?<span style={{fontSize:10,color:"#2E7D32"}}>✓ tracée</span>:<span style={{fontSize:10,color:"#C62828"}}>non tracée</span>}</div>
+          <div style={{fontSize:10,color:C.light,marginBottom:8}}>Art. L.311-3 7° CASF : participation directe à la conception et à la mise en œuvre du projet.</div>
+          <label style={{...S.lbl}}>Date de l'entretien de co-construction</label>
+          <input type="date" style={{...S.inp,marginBottom:10}} value={part.dateEntretien||""} onChange={e=>updPart("dateEntretien",e.target.value)}/>
+          <label style={{...S.lbl}}>Avis et attentes exprimés par le jeune</label>
+          <textarea key={selId+"-aj"} defaultValue={part.avisJeune||""} onBlur={e=>updPart("avisJeune",e.target.value)} placeholder="Retranscrire les mots du jeune" style={{...S.inp,minHeight:80,resize:"vertical",marginBottom:10}}/>
+          {!isMaj&&<><label style={{...S.lbl}}>Avis des titulaires de l'autorité parentale</label>
+          <textarea key={selId+"-at"} defaultValue={part.avisTitulaires||""} onBlur={e=>updPart("avisTitulaires",e.target.value)} style={{...S.inp,minHeight:60,resize:"vertical",marginBottom:10}}/></>}
+          <label style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:700,color:C.dark,cursor:"pointer"}}><input type="checkbox" checked={!!part.refus} onChange={e=>updPart("refus",e.target.checked)} style={{accentColor:C.gold}}/>Le jeune a refusé de participer</label>
+          {part.refus&&<><label style={{...S.lbl,marginTop:8}}>Motif du refus / démarches engagées</label><textarea key={selId+"-mr"} defaultValue={part.motifRefus||""} onBlur={e=>updPart("motifRefus",e.target.value)} style={{...S.inp,minHeight:50,resize:"vertical"}}/></>}
+        </div>
+        <div style={{paddingTop:12,borderTop:"1px solid "+C.border}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Objectifs ({(projet.objectifs||[]).length})</div><button onClick={()=>setShowObj(!showObj)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Objectif</button></div>
+          <div style={{fontSize:10,color:C.light,marginBottom:8}}>{isMaj?"Domaines du contrat jeune majeur (trame interne)":"Domaines de vie du référentiel PPE — art. D.223-12 CASF"}</div>
+          {showObj&&<div style={{...S.card,background:C.sableLight,marginBottom:10}}>
+            <label style={{...S.lbl}}>Domaine de vie</label>
+            <select style={{...S.inp,marginBottom:8}} value={oDom} onChange={e=>setODom(e.target.value)}><option value="">-- Choisir --</option>{DOM.map(d=><option key={d.k} value={d.k}>{d.l}</option>)}</select>
+            <label style={{...S.lbl}}>Objectif (formulé avec le jeune)</label>
+            <input style={{...S.inp,marginBottom:8}} value={oTitre} onChange={e=>setOTitre(e.target.value)}/>
+            <label style={{...S.lbl}}>Moyens / prestations mobilisés</label>
+            <textarea style={{...S.inp,minHeight:56,resize:"vertical",marginBottom:8}} value={oMoyens} onChange={e=>setOMoyens(e.target.value)}/>
+            <label style={{...S.lbl}}>Indicateur d'évaluation</label>
+            <input style={{...S.inp,marginBottom:8}} value={oInd} onChange={e=>setOInd(e.target.value)} placeholder="À quoi verra-t-on que l'objectif est atteint ?"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div><label style={{...S.lbl}}>Professionnel référent</label><select style={{...S.inp}} value={oRef} onChange={e=>setORef(e.target.value)}><option value="">--</option>{educs.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+              <div><label style={{...S.lbl}}>Échéance</label><input type="date" style={{...S.inp}} value={oEch} onChange={e=>setOEch(e.target.value)}/></div>
+            </div>
+            <button onClick={addObj} style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:10}}><Check size={14}/>Ajouter l'objectif</button>
+          </div>}
+          {DOM.map(d=>{const objs=(projet.objectifs||[]).filter(o=>o.domaine===d.k);if(!objs.length)return null;return(<div key={d.k} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:C.goldDark,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:4}}>{d.l}</div>
+            {objs.map(o=>{const st=OBJ_ST[o.statut]||OBJ_ST["En cours"];const late=o.echeance&&o.statut==="En cours"&&o.echeance<isoToday();return(<div key={o.id} style={{padding:"9px 11px",background:"#f8f9fa",borderRadius:8,marginBottom:6}}>
+              <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:150}}><div style={{fontSize:13,fontWeight:700,color:C.dark}}>{o.titre}</div>{o.echeance&&<div style={{fontSize:10,color:late?"#C62828":C.light,fontWeight:late?800:600}}>Échéance : {fmt(o.echeance)}{late?" — dépassée":""}</div>}</div>
+                <select value={o.statut} onChange={e=>updObj(o.id,{statut:e.target.value})} style={{...S.inp,width:"auto",fontSize:11,padding:"4px 8px",background:st.bg,color:st.c,fontWeight:700,border:"1px solid "+st.c}}>{OBJ_STATUTS.map(s=><option key={s}>{s}</option>)}</select>
+                <button onClick={()=>delObj(o.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:14}}>✕</button>
+              </div>
+              {o.moyens&&<div style={{fontSize:11,color:C.mid,marginTop:4}}><b>Moyens :</b> {o.moyens}</div>}
+              {o.indicateur&&<div style={{fontSize:11,color:C.mid}}><b>Indicateur :</b> {o.indicateur}</div>}
+              {o.referent&&<div style={{fontSize:10,color:C.light,marginTop:2}}>Référent : {o.referent}</div>}
+            </div>);})}
+          </div>);})}
+          {(projet.objectifs||[]).filter(o=>!o.domaine).length>0&&<div style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#C62828",textTransform:"uppercase",marginBottom:4}}>Non rattachés à un domaine</div>
+            {(projet.objectifs||[]).filter(o=>!o.domaine).map(o=>(<div key={o.id} style={{padding:"9px 11px",background:"#FFF5F5",borderRadius:8,marginBottom:6,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:140,fontSize:13,fontWeight:700,color:C.dark}}>{o.titre}</div>
+              <select value="" onChange={e=>e.target.value&&updObj(o.id,{domaine:e.target.value})} style={{...S.inp,width:"auto",fontSize:11,padding:"4px 8px"}}><option value="">Rattacher à…</option>{DOM.map(d=><option key={d.k} value={d.k}>{d.l}</option>)}</select>
+              <button onClick={()=>delObj(o.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:14}}>✕</button>
+            </div>))}
+          </div>}
+          {(projet.objectifs||[]).length===0&&<div style={{fontSize:12,color:C.light,padding:"8px 0"}}>Aucun objectif défini.</div>}
+        </div>
+        <div style={{paddingTop:12,borderTop:"1px solid "+C.border}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Révisions / avenants ({(projet.revisions||[]).length})</div><button onClick={()=>setShowRev(!showRev)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Révision</button></div>
+          {showRev&&<div style={{...S.card,background:C.sableLight,marginBottom:10}}>
+            <label style={{...S.lbl}}>Nature</label>
+            <select style={{...S.inp,marginBottom:8}} value={revType} onChange={e=>setRevType(e.target.value)}><option>Avenant initial (objectifs et prestations)</option><option>Révision mi-séjour</option><option>Révision exceptionnelle</option><option>Actualisation annuelle</option></select>
+            <label style={{...S.lbl}}>Contenu</label>
+            <textarea style={{...S.inp,minHeight:70,resize:"vertical"}} value={revNote} onChange={e=>setRevNote(e.target.value)}/>
+            <button onClick={addRev} style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:10}}><Check size={14}/>Enregistrer</button>
+          </div>}
+          {(projet.revisions||[]).slice().reverse().map(r=><div key={r.id} style={{padding:"8px 10px",background:C.goldLight,borderRadius:8,marginBottom:6}}><div style={{fontSize:10,fontWeight:700,color:C.goldDark}}>{fmt(r.date)} — {r.par}{r.type?" · "+r.type:""}</div><div style={{fontSize:12,color:C.dark,marginTop:2}}>{r.note}</div></div>)}
+          {(projet.revisions||[]).length===0&&<div style={{fontSize:12,color:C.light,padding:"4px 0"}}>Aucune révision.</div>}
+        </div>
+        <div style={{paddingTop:12,marginTop:12,borderTop:"1px solid "+C.border}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:2}}>Bilan de fin de séjour</div>
+          <div style={{fontSize:10,color:C.light,marginBottom:8}}>Alimente le rapport de situation transmis au département (art. L.223-5 CASF).</div>
+          <label style={{...S.lbl}}>Date</label>
+          <input type="date" style={{...S.inp,marginBottom:8}} value={(projet.bilan&&projet.bilan.date)||""} onChange={e=>upd({bilan:{...(projet.bilan||{}),date:e.target.value,par:user?.name||"?"}})}/>
+          <label style={{...S.lbl}}>Synthèse</label>
+          <textarea key={selId+"-bil"} defaultValue={(projet.bilan&&projet.bilan.texte)||""} onBlur={e=>upd({bilan:{...(projet.bilan||{}),texte:e.target.value,par:user?.name||"?"}})} style={{...S.inp,minHeight:100,resize:"vertical"}}/>
+        </div>
       </>}
     </div>}
   </div>);
@@ -784,7 +876,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:9,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1036,6 +1128,30 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
         <div><div style={{fontWeight:800,fontSize:13,color:C.dark}}>{a.jeuneId?opName(a.jeuneId):(a.jeuneNom||"—")}</div><div style={{fontSize:11,color:C.light}}>{fmt(a.date)}{a.heure?" · "+a.heure:""}{a.type?" · "+a.type:""}{a.lieu?" · "+a.lieu:""}</div></div>
         <button onClick={()=>{if(confirm("Supprimer ce RDV ?"))onUpdateAgenda&&onUpdateAgenda((agenda||[]).filter(x=>x.id!==a.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>
       </div>)}
+    </div>);})()}
+
+    {tab==="projets-cfg"&&(()=>{const cfg=projCfg(etabConfig);const setCfg=(k,v)=>{const n=parseInt(v,10);if(onUpdateEtab)onUpdateEtab(prev=>({...prev,projet:{...projCfg(prev),[k]:isNaN(n)?0:n}}));};const pool=opPool.filter(j=>matchOp(j.id)&&j.statut!=="archivé"&&j.statut!=="inactif");const FIELDS=[["delaiDipc","Remise du DIPC","Art. D.311 CASF : 15 jours maximum"],["delaiObjectifs","Pose des objectifs","Avenant : 6 mois maximum au sens du décret, à raccourcir sur un séjour court"],["delaiRevision","Révision de mi-séjour","Pratique interne"],["delaiBilan","Bilan de fin de séjour","Pratique interne"]];return(<div>
+      <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:14}}>
+        <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Échéances du projet personnalisé</h3>
+        <div style={{fontSize:11,color:C.light,marginBottom:10}}>Exprimées en jours à compter de la date d'entrée du bénéficiaire. Les séjours PDSR durant environ cinq mois, ces délais doivent rester inférieurs à la durée du séjour.</div>
+        {FIELDS.map(([k,l,h])=><div key={k} style={{marginBottom:10}}>
+          <label style={{...S.lbl}}>{l}</label>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}><input type="number" min="1" style={{...S.inp,width:100}} value={cfg[k]} onChange={e=>setCfg(k,e.target.value)}/><span style={{fontSize:12,color:C.mid}}>jours après l'entrée</span></div>
+          <div style={{fontSize:10,color:C.light,marginTop:2}}>{h}</div>
+        </div>)}
+      </div>
+      <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+        <div style={{fontSize:13,fontWeight:800,color:C.dark,padding:"8px 8px 4px"}}>Conformité ({pool.length})</div>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
+          <thead><tr style={{background:C.sableLight}}>{["Bénéficiaire","DIPC","Objectifs","Révision","Bilan","Participation","Obj."].map(h=><th key={h} style={{fontSize:10,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <tbody>{pool.map(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));const e=projEcheances(j,p,etabConfig);const pa=(p&&p.participation)||{};const tracee=!!(pa.dateEntretien&&((pa.avisJeune||"").trim()||pa.refus));const nObj=p?(p.objectifs||[]).length:0;const nSans=p?(p.objectifs||[]).filter(o=>!o.domaine).length:0;return(<tr key={j.id} style={{borderTop:"1px solid "+C.border}}>
+            <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{j.prenom} {j.nom}<div style={{fontSize:9,color:C.light,fontWeight:600}}>{j.site}{!p?" · aucun projet":""}</div></td>
+            {e.map(x=>{const st=echStatut(x.due,x.fait);return<td key={x.k} style={{padding:"6px 8px"}}><span style={{fontSize:10,fontWeight:800,color:st.c,background:st.bg,borderRadius:6,padding:"2px 7px",whiteSpace:"nowrap"}}>{st.l}</span></td>;})}
+            <td style={{padding:"6px 8px"}}><span style={{fontSize:10,fontWeight:800,color:tracee?"#2E7D32":"#C62828"}}>{tracee?"Tracée":"Non tracée"}</span></td>
+            <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.dark}}>{nObj}{nSans>0&&<span style={{color:"#C62828",fontSize:10,fontWeight:800}}> ({nSans} sans domaine)</span>}</td>
+          </tr>);})}</tbody>
+        </table>
+      </div>
     </div>);})()}
 
     {tab==="op-projets"&&(()=>{const pool=opPool.filter(j=>matchOp(j.id)&&j.statut!=="archivé");const today2=new Date().toISOString().slice(0,10);return(<div>
@@ -2049,7 +2165,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage purgeRanges={(purgeMarks&&purgeMarks.ranges)||[]} onCancelRange={(ts)=>{setPurgeMarks(prev=>({...prev,ranges:(prev.ranges||[]).filter(r=>r.ts!==ts)}));}} sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts,ranges:[...(prev&&prev.ranges||[]),{t:[sc.rapports&&"rapport",sc.evenements&&"evenement",sc.agenda&&"agenda",sc.rapportsSite&&"rapportSite"].filter(Boolean),from,to,ts}].slice(-15)}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
       {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onPurgeLogs={()=>{setPurgeMarks(p=>({...p,loginLogs:nowSrv()}));setLoginLogs([]);}} onPurgeDeletionLogs={()=>{setPurgeMarks(p=>({...p,deletionLogs:nowSrv()}));setDeletionLogs([]);}} presences={presences} onChangeP={changeP} agenda={agenda} onUpdateAgenda={setAgenda} projets={projets} rapportsSite={rapportsSite} onUpdateRapportsSite={setRapportsSite} onDeleteRapport={delR} onUpdateRapport={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} onDeleteEvenement={delE} onUpdateEvenements={setEvenements}/>}
         {page==="rapport-hebdo"&&<RapportHebdo user={effUser} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
-        {page==="projets"&&<ProjetsPersonnalises user={effUser} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets}/>}
+        {page==="projets"&&<ProjetsPersonnalises user={effUser} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets} etabConfig={etabConfig} users={appUsers}/>}
       {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={effUser.site} user={effUser} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
         {page==="espace-rh"&&<EspaceRH user={effUser} docs={docs} users={appUsers} onAdd={(d)=>setDocs(p=>[...p,d])} onSign={(id,sig)=>setDocs(p=>p.map(x=>x.id===id?{...x,signatures:[...(x.signatures||[]),sig]}:x))} onDelete={(id)=>setDocs(p=>p.filter(x=>x.id!==id))}/>}
       </div></main>
