@@ -72,6 +72,152 @@ function loadJsPDF(){
   _jspdfPromise=new Promise((resolve,reject)=>{const tryNext=(i)=>{if(i>=urls.length){_jspdfPromise=null;reject(new Error("Librairie PDF inaccessible (vérifier la connexion)"));return;}const s=document.createElement("script");s.src=urls[i];s.onload=()=>{(window.jspdf&&window.jspdf.jsPDF)?resolve(window.jspdf.jsPDF):tryNext(i+1);};s.onerror=()=>{s.remove();tryNext(i+1);};document.head.appendChild(s);};tryNext(0);});
   return _jspdfPromise;
 }
+const STAGE_ST=["Prévu","En cours","Terminé","Interrompu"];
+const STAGE_STC={"Prévu":{bg:"#E3F2FD",c:"#1565C0"},"En cours":{bg:"#FFF8E1",c:"#B8860B"},"Terminé":{bg:"#E8F5E9",c:"#2E7D32"},"Interrompu":{bg:"#FFEBEE",c:"#C62828"}};
+const APP_CRIT=[{k:"assiduite",l:"Assiduité et ponctualité"},{k:"comportement",l:"Comportement et savoir-être"},{k:"technique",l:"Acquisition des gestes professionnels"},{k:"autonomie",l:"Autonomie"},{k:"integration",l:"Intégration dans l'équipe"}];
+const APP_NIV=["Insuffisant","En progression","Satisfaisant","Très satisfaisant"];
+function StagesPanel({sujet,user,users,onUpdate}){
+  const stages=(sujet.stages)||[];
+  const[form,setForm]=useState(false);
+  const[f,setF]=useState({intitule:"",structure:"",lieu:"",tuteur:"",telTuteur:"",referent:"",dateDebut:"",dateFin:"",heures:""});
+  const educs=(users||[]).filter(u=>u.role==="educateur"||u.role==="coordinateur_site");
+  const save=(arr)=>onUpdate(sujet.id,"stages",arr);
+  const add=()=>{if(!f.intitule.trim()||!f.structure.trim()){alert("L'intitulé et la structure d'accueil sont obligatoires.");return;}save([...stages,{id:Date.now(),...f,statut:"Prévu",appreciations:[],bilan:"",creePar:(user&&user.name)||"",creeLe:isoToday()}]);setF({intitule:"",structure:"",lieu:"",tuteur:"",telTuteur:"",referent:"",dateDebut:"",dateFin:"",heures:""});setForm(false);};
+  const patch=(id,p)=>save(stages.map(s=>s.id===id?{...s,...p}:s));
+  const del=(id)=>{if(confirm("Supprimer ce stage ?"))save(stages.filter(s=>s.id!==id));};
+  const addApp=(st)=>{const a={id:Date.now(),date:isoToday(),par:(user&&user.name)||"",notes:{},texte:""};patch(st.id,{appreciations:[...((st.appreciations)||[]),a]});};
+  const patchApp=(st,aid,p)=>patch(st.id,{appreciations:((st.appreciations)||[]).map(a=>a.id===aid?{...a,...p}:a)});
+  const delApp=(st,aid)=>{if(confirm("Supprimer cette appréciation ?"))patch(st.id,{appreciations:((st.appreciations)||[]).filter(a=>a.id!==aid)});};
+  const F=(k,l,type)=>(<div><label style={{...S.lbl}}>{l}</label><input type={type||"text"} style={{...S.inp}} value={f[k]} onChange={e=>setF(p=>({...p,[k]:e.target.value}))}/></div>);
+  return(<div>
+    {!form&&<button onClick={()=>setForm(true)} style={{...S.btnP,width:"100%",justifyContent:"center",marginBottom:12}}><Plus size={14}/>Ajouter un stage</button>}
+    {form&&<div style={{...S.card,background:C.sableLight,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8}}>{F("intitule","Intitulé du stage")}{F("structure","Structure d'accueil")}{F("lieu","Lieu / adresse")}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>{F("tuteur","Tuteur sur site")}{F("telTuteur","Téléphone tuteur","tel")}</div>
+      <div style={{marginTop:8}}><label style={{...S.lbl}}>Référent éducatif</label><select style={{...S.inp}} value={f.referent} onChange={e=>setF(p=>({...p,referent:e.target.value}))}><option value="">--</option>{educs.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:8}}>{F("dateDebut","Début","date")}{F("dateFin","Fin","date")}{F("heures","Heures/sem.","number")}</div>
+      <div style={{display:"flex",gap:8,marginTop:10}}><button onClick={add} style={{...S.btnP,flex:1,justifyContent:"center"}}><Check size={14}/>Enregistrer</button><button onClick={()=>setForm(false)} style={{...S.btnO,flex:1,justifyContent:"center"}}>Annuler</button></div>
+    </div>}
+    {stages.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucun stage enregistré.</div>}
+    {stages.slice().sort((a,b)=>String(b.dateDebut||"").localeCompare(String(a.dateDebut||""))).map(st=>{const sc=STAGE_STC[st.statut]||STAGE_STC["Prévu"];const nb=demJours(st.dateDebut,st.dateFin);return(<div key={st.id} style={{...S.card,marginBottom:10,borderLeft:"4px solid "+sc.c}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:150}}><div style={{fontSize:14,fontWeight:800,color:C.dark}}>{st.intitule}</div><div style={{fontSize:11.5,color:C.mid}}>{st.structure}{st.lieu?" · "+st.lieu:""}</div></div>
+        <select value={st.statut} onChange={e=>patch(st.id,{statut:e.target.value})} style={{...S.inp,width:"auto",fontSize:11,padding:"4px 8px",background:sc.bg,color:sc.c,fontWeight:700,border:"1px solid "+sc.c}}>{STAGE_ST.map(x=><option key={x}>{x}</option>)}</select>
+        <button onClick={()=>del(st.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+      </div>
+      <div style={{fontSize:11.5,color:C.mid,marginTop:6,lineHeight:1.6}}>
+        {st.dateDebut||st.dateFin?<div>Du {st.dateDebut?fmt(st.dateDebut):"?"} au {st.dateFin?fmt(st.dateFin):"?"}{nb?" ("+nb+" j)":""}{st.heures?" · "+st.heures+" h/sem.":""}</div>:null}
+        {st.tuteur&&<div>Tuteur : {st.tuteur}{st.telTuteur?" — "+st.telTuteur:""}</div>}
+        {st.referent&&<div>Référent éducatif : {st.referent}</div>}
+      </div>
+      <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontSize:12,fontWeight:800,color:C.dark}}>Appréciations ({((st.appreciations)||[]).length})</div><button onClick={()=>addApp(st)} style={{...S.btnO,fontSize:11,padding:"4px 11px"}}><Plus size={12}/>Ajouter</button></div>
+        {((st.appreciations)||[]).map(a=>(<div key={a.id} style={{padding:"9px 10px",background:"#f8f9fa",borderRadius:8,marginBottom:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontSize:10.5,fontWeight:700,color:C.light}}>{fmt(a.date)} — {a.par}</div><button onClick={()=>delApp(st,a.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:13}}>✕</button></div>
+          {APP_CRIT.map(cr=>(<div key={cr.k} style={{marginBottom:5}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.mid,marginBottom:3}}>{cr.l}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{APP_NIV.map(n=><button key={n} onClick={()=>patchApp(st,a.id,{notes:{...(a.notes||{}),[cr.k]:n}})} style={{padding:"3px 9px",borderRadius:14,border:"1.5px solid "+((a.notes||{})[cr.k]===n?C.gold:C.border),background:(a.notes||{})[cr.k]===n?C.gold:C.white,color:(a.notes||{})[cr.k]===n?C.white:C.mid,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>)}</div>
+          </div>))}
+          <textarea key={a.id+"t"} defaultValue={a.texte||""} onBlur={e=>patchApp(st,a.id,{texte:e.target.value})} placeholder="Commentaire du tuteur ou de l'éducateur" style={{...S.inp,minHeight:52,resize:"vertical",marginTop:4}}/>
+        </div>))}
+      </div>
+      <div style={{marginTop:8}}><label style={{...S.lbl}}>Bilan de fin de stage</label><textarea key={st.id+"b"} defaultValue={st.bilan||""} onBlur={e=>patch(st.id,{bilan:e.target.value})} style={{...S.inp,minHeight:60,resize:"vertical"}}/></div>
+    </div>);})}
+  </div>);
+}
+function pdfNew(jsPDF){return new jsPDF({unit:"mm",format:"a4"});}
+function pdfEntete(doc,etab,titre,sousTitre){
+  const M=16,W=210;
+  doc.setFillColor(184,146,42);doc.rect(0,0,W,24,"F");
+  try{doc.addImage(PDSR_LOGO,"PNG",W-M-17,3.5,17,16.4);}catch(e){}
+  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);
+  doc.text((etab&&etab.raisonSociale)||"Association PDSR",M,11);
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+  doc.text(((etab&&etab.sousTitre)||"")+"   FINESS "+((etab&&etab.finess)||""),M,17.5);
+  doc.setTextColor(40,40,40);doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text(titre,M,34);
+  if(sousTitre){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(120,110,90);doc.text(sousTitre,M,40);}
+  return sousTitre?47:41;
+}
+function pdfPied(doc,mention){
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(140,140,140);doc.text(mention+" — page "+i+"/"+n,16,289);}
+}
+function pdfEcrivain(doc,state){
+  const M=16,LW=210-2*M;
+  return (txt,{size=10,bold=false,gap=5,color=[40,40,40]}={})=>{
+    doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);doc.setTextColor(color[0],color[1],color[2]);
+    doc.splitTextToSize(String(txt==null?"":txt),LW).forEach(pt=>{if(state.y>272){doc.addPage();state.y=16;}doc.text(pt,M,state.y);state.y+=gap;});
+  };
+}
+async function projetPDF(projet,sujet,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const isMaj=sujet.id>=100;const DOM=isMaj?PROJ_DOM_MAJEUR:PROJ_DOM_MINEUR;
+  const st={y:pdfEntete(doc,etab,"PROJET PERSONNALISÉ",isMaj?"Contrat jeune majeur — art. L.222-5 CASF":"Art. L.311-3 et L.311-4 CASF — articulation avec le projet pour l'enfant")};
+  const L=pdfEcrivain(doc,st);
+  const rule=()=>{if(st.y>272){doc.addPage();st.y=16;}doc.setDrawColor(200,180,120);doc.line(16,st.y,194,st.y);st.y+=5;};
+  rule();
+  L("Bénéficiaire : "+(sujet.prenom||"")+" "+(sujet.nom||""),{bold:true});
+  L("Site : "+(sujet.site||"—")+"     Entrée : "+(sujet.dateDebut?fmt(normDate(sujet.dateDebut)):"—")+"     Sortie : "+(sujet.dateFin?fmt(normDate(sujet.dateFin)):"—"));
+  L("Projet élaboré le "+(projet.dateElaboration?fmt(projet.dateElaboration):"—")+" par "+(projet.creePar||"—"));
+  L("DIPC remis le "+(projet.dipcRemisLe?fmt(projet.dipcRemisLe):"non renseigné"),{gap:7});
+  rule();
+  const p=projet.participation||{};
+  L("PARTICIPATION DU BÉNÉFICIAIRE",{size:11,bold:true,gap:6,color:[150,110,20]});
+  L("Entretien de co-construction : "+(p.dateEntretien?fmt(p.dateEntretien):"non renseigné"),{size:9.5});
+  L("Avis et attentes exprimés :",{size:9,bold:true,gap:4.2});
+  L(p.refus?("Refus de participer. "+(p.motifRefus||"")):(p.avisJeune||"—"),{size:9.5,gap:5.5});
+  if(!isMaj){L("Avis des titulaires de l'autorité parentale :",{size:9,bold:true,gap:4.2});L(p.avisTitulaires||"—",{size:9.5,gap:6});}
+  rule();
+  L("OBJECTIFS",{size:11,bold:true,gap:6,color:[150,110,20]});
+  const objs=projet.objectifs||[];
+  if(!objs.length)L("Aucun objectif défini.",{size:9.5,gap:6});
+  DOM.forEach(d=>{const list=objs.filter(o=>o.domaine===d.k);if(!list.length)return;
+    L(d.l,{size:9.5,bold:true,gap:5,color:[100,80,20]});
+    list.forEach(o=>{
+      L("• "+o.titre+"   ["+(o.statut||"En cours")+"]",{size:9.5,gap:4.5});
+      if(o.moyens)L("   Moyens : "+o.moyens,{size:9,gap:4.2,color:[90,90,90]});
+      if(o.indicateur)L("   Indicateur : "+o.indicateur,{size:9,gap:4.2,color:[90,90,90]});
+      if(o.referent||o.echeance)L("   Référent : "+(o.referent||"—")+"   Échéance : "+(o.echeance?fmt(o.echeance):"—"),{size:9,gap:5,color:[90,90,90]});
+    });st.y+=1;});
+  const sansDom=objs.filter(o=>!o.domaine);
+  if(sansDom.length){L("Objectifs non rattachés",{size:9.5,bold:true,gap:5,color:[150,40,40]});sansDom.forEach(o=>L("• "+o.titre,{size:9.5,gap:4.5}));}
+  rule();
+  L("RÉVISIONS ET AVENANTS",{size:11,bold:true,gap:6,color:[150,110,20]});
+  const revs=projet.revisions||[];
+  if(!revs.length)L("Aucune révision.",{size:9.5,gap:6});
+  revs.forEach(r=>{L(fmt(r.date)+" — "+(r.par||"")+(r.type?" · "+r.type:""),{size:9,bold:true,gap:4.2});L(r.note||"",{size:9.5,gap:5.5});});
+  const obs=projet.observations||[];
+  if(obs.length){rule();L("OBSERVATIONS DE TERRAIN ("+obs.length+")",{size:11,bold:true,gap:6,color:[150,110,20]});
+    obs.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(o=>{L(fmt(o.date)+" — "+(o.par||"")+((o.domaine&&DOM.find(d=>d.k===o.domaine))?" · "+DOM.find(d=>d.k===o.domaine).l:""),{size:8.5,bold:true,gap:4,color:[120,110,90]});L(o.texte||"",{size:9.5,gap:5});});}
+  if(projet.bilan&&(projet.bilan.date||projet.bilan.texte)){rule();L("BILAN DE FIN DE SÉJOUR",{size:11,bold:true,gap:6,color:[150,110,20]});L("Rédigé le "+(projet.bilan.date?fmt(projet.bilan.date):"—")+" par "+(projet.bilan.par||"—"),{size:9,gap:5});L(projet.bilan.texte||"—",{size:9.5,gap:6});}
+  rule();
+  L("VALIDATION",{size:11,bold:true,gap:6,color:[150,110,20]});
+  L(projet.statut==="valide"?("Validé le "+fmt(projet.valideLe)+" par "+(projet.validePar||"—")):"Document non validé — version de travail",{size:10,bold:true,gap:6,color:projet.statut==="valide"?[46,125,50]:[198,40,40]});
+  (projet.reouvertures||[]).forEach(r=>L("Rouvert le "+fmt(r.date)+" par "+(r.par||"—")+(r.motif?" — "+r.motif:""),{size:8.5,gap:4,color:[120,110,90]}));
+  st.y+=8;L("Le référent éducatif :"+"                              "+"Le chef de service :",{size:9.5,gap:16});
+  L("Le directeur :",{size:9.5,gap:6});
+  pdfPied(doc,"Document confidentiel — projet personnalisé");
+  doc.save("projet_"+String((sujet.prenom||"")+"_"+(sujet.nom||"")).replace(/[^A-Za-z0-9]+/g,"_")+".pdf");
+}
+async function demandesPDF(liste,etab,titre){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const st={y:pdfEntete(doc,etab,"DEMANDES DU PERSONNEL",titre||("Édité le "+fmt(isoToday())))};
+  const L=pdfEcrivain(doc,st);
+  const rule=()=>{if(st.y>272){doc.addPage();st.y=16;}doc.setDrawColor(200,180,120);doc.line(16,st.y,194,st.y);st.y+=5;};
+  rule();
+  if(!liste.length)L("Aucune demande.",{size:10});
+  liste.forEach(d=>{
+    const stt=(DEM_ST[d.statut]||DEM_ST.en_attente).l;
+    L((d._nom?d._nom+" — ":"")+demTitre(d),{size:10.5,bold:true,gap:4.6});
+    L((DEM_TYPES.find(t=>t.k===d.type)||{}).l+" · déposée le "+fmt(d.creeLe)+" · "+stt,{size:8.5,gap:4.4,color:[120,110,90]});
+    if(d.interlocuteur)L("Avec : "+d.interlocuteur,{size:9,gap:4.2});
+    if(d.motif)L(d.motif,{size:9.5,gap:4.6});
+    if(d.decisionPar)L(stt+" par "+d.decisionPar+" le "+fmt(d.decisionLe)+(d.decisionNote?" — "+d.decisionNote:""),{size:9,gap:5,color:[90,90,90]});
+    st.y+=2;if(st.y>272){doc.addPage();st.y=16;}doc.setDrawColor(230,225,215);doc.line(16,st.y,194,st.y);st.y+=5;
+  });
+  pdfPied(doc,"Document confidentiel — dossier du personnel");
+  doc.save("demandes_personnel_"+isoToday()+".pdf");
+}
 const ENT_ECHELLE=["Insuffisant","À développer","Maîtrisé","Expert"];
 const ENT_PERIODES=["1er semestre","2e semestre"];
 const ENT_GRILLE=[
@@ -118,13 +264,7 @@ async function entretienPDF(ent,salarie,etab){
   const M=16,W=210,LW=W-2*M;let y=M;
   const line=(txt,{size=10,bold=false,gap=5,color=[40,40,40]}={})=>{doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);doc.setTextColor(color[0],color[1],color[2]);const parts=doc.splitTextToSize(String(txt==null?"":txt),LW);parts.forEach(pt=>{if(y>272){doc.addPage();y=M;}doc.text(pt,M,y);y+=gap;});};
   const rule=()=>{if(y>272){doc.addPage();y=M;}doc.setDrawColor(200,180,120);doc.line(M,y,W-M,y);y+=5;};
-  doc.setFillColor(184,146,42);doc.rect(0,0,W,24,"F");
-  try{doc.addImage(PDSR_LOGO,"PNG",W-M-17,3.5,17,16.4);}catch(e){}
-  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text((etab&&etab.raisonSociale)||"Association PDSR",M,11);
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(((etab&&etab.sousTitre)||"")+"   FINESS "+((etab&&etab.finess)||""),M,17);
-  y=32;
-  line("COMPTE RENDU D'ENTRETIEN ANNUEL D'ÉVALUATION",{size:13,bold:true,gap:7});
-  line("Périodicité interne : deux entretiens par an",{size:9,color:[120,110,90],gap:7});
+  y=pdfEntete(doc,etab,"COMPTE RENDU D'ENTRETIEN ANNUEL D'ÉVALUATION","Périodicité interne : deux entretiens par an");
   rule();
   line("Salarié : "+(salarie.name||""),{bold:true});
   line("Fonction : "+(salarie.role||"")+"     Site : "+(salarie.site||"—"));
@@ -364,7 +504,7 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
   const jr=(rapports||[]).filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const jp=presences.filter(p=>p.jeuneId===jeune.id&&WEEKDATES.includes(p.date));
   const je=(evenements||[]).filter(e=>e.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const tabs=["fiche","rapports","présences","incidents"];
+  const tabs=["fiche","rapports","présences","stages","incidents"];
   return(<div style={{padding:"14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card,background:C.sable,border:"none",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -388,7 +528,8 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:11,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}{r.author&&<span style={{fontWeight:400,fontSize:11,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:9,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{sc2.icon}</button></div>);})}
     </div></div>}
-    {tab==="incidents"&&<div>{je.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:je.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,borderLeft:`4px solid ${gc.dot}`,animation:"cardEnter 0.3s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><div style={{fontWeight:800,color:C.dark}}>{e.titre}</div><span style={{...{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}}>{e.gravite}</span></div><p style={{margin:0,fontSize:12,color:C.mid}}>{e.description}</p><div style={{fontSize:10,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" - par "+e.author}</div></div>);})}
+    {tab==="stages"&&<StagesPanel sujet={jeune} user={user} users={users} onUpdate={onUpdateJeune}/>}
+      {tab==="incidents"&&<div>{je.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:je.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,borderLeft:`4px solid ${gc.dot}`,animation:"cardEnter 0.3s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><div style={{fontWeight:800,color:C.dark}}>{e.titre}</div><span style={{...{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}}>{e.gravite}</span></div><p style={{margin:0,fontSize:12,color:C.mid}}>{e.description}</p><div style={{fontSize:10,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" - par "+e.author}</div></div>);})}
     <button style={{...S.btnO,marginTop:8}} onClick={()=>onAddE(jeune)}><Plus size={15}/>Déclarer événement</button></div>}
   </div>);
 }
@@ -714,6 +855,7 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
   const[siteF,setSiteF]=useState("Tous");
   const[selId,setSelId]=useState("");
   const[oDom,setODom]=useState("");const[oTitre,setOTitre]=useState("");const[oMoyens,setOMoyens]=useState("");const[oRef,setORef]=useState("");const[oInd,setOInd]=useState("");const[oEch,setOEch]=useState("");const[showObj,setShowObj]=useState(false);
+  const[obsTxt,setObsTxt]=useState("");const[obsDom,setObsDom]=useState("");
   const[revType,setRevType]=useState("Révision mi-séjour");const[revNote,setRevNote]=useState("");const[showRev,setShowRev]=useState(false);
   const vis=vj.filter(j=>(siteF==="Tous"||j.site===siteF)&&j.statut!=="inactif"&&j.statut!=="archivé");
   const sel=allPool.find(j=>String(j.id)===String(selId));
@@ -723,6 +865,12 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
   const projet=(projets||[]).find(p=>String(p.jeuneId)===String(selId));
   const educs=(users||USERS).filter(u=>u.role==="educateur"||u.role==="coordinateur_site");
   const upd=(patch)=>{if(projet){onUpdate(prev=>prev.map(p=>p.id===projet.id?{...p,...patch}:p));}else{onUpdate(prev=>[...(prev||[]),{id:Date.now(),jeuneId:+selId,dateElaboration:isoToday(),creePar:user?.name||"?",dipcRemisLe:"",participation:{dateEntretien:"",avisJeune:"",avisTitulaires:"",refus:false,motifRefus:""},objectifs:[],revisions:[],bilan:{date:"",par:"",texte:""},...patch}]);}};
+  const estDir=user.role==="directeur"||user.role==="chef_service";
+  const verrou=!!projet&&projet.statut==="valide"&&!estDir;
+  const valider=()=>{if(!confirm("Valider ce projet ? Les éducateurs ne pourront plus le modifier."))return;upd({statut:"valide",valideLe:isoToday(),validePar:user?.name||"?"});};
+  const rouvrir=()=>{const m=prompt("Motif de la réouverture")||"";upd({statut:"brouillon",reouvertures:[...((projet&&projet.reouvertures)||[]),{date:isoToday(),par:user?.name||"?",motif:m}]});};
+  const addObs=()=>{if(!obsTxt.trim())return;upd({observations:[...((projet&&projet.observations)||[]),{id:Date.now(),date:isoToday(),par:user?.name||"?",domaine:obsDom,texte:obsTxt.trim()}]});setObsTxt("");setObsDom("");};
+  const delObs=(oid)=>{if(confirm("Supprimer cette observation ?"))upd({observations:((projet&&projet.observations)||[]).filter(o=>o.id!==oid)});};
   const part=(projet&&projet.participation)||{};
   const updPart=(k,v)=>upd({participation:{...part,[k]:v}});
   const addObj=()=>{if(!oTitre.trim()){alert("Le libellé de l'objectif est obligatoire.");return;}if(!oDom){alert("Rattachez l'objectif à un domaine de vie.");return;}upd({objectifs:[...((projet&&projet.objectifs)||[]),{id:Date.now(),domaine:oDom,titre:oTitre.trim(),moyens:oMoyens.trim(),referent:oRef,indicateur:oInd.trim(),echeance:oEch,statut:"En cours",creeLe:isoToday(),creePar:user?.name||"?"}]});setODom("");setOTitre("");setOMoyens("");setORef("");setOInd("");setOEch("");setShowObj(false);};
@@ -746,6 +894,27 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
       </div>
       {!projet&&<button onClick={()=>upd({})} style={{...S.btnP,justifyContent:"center"}}><Plus size={14}/>Créer le projet personnalisé</button>}
       {projet&&<>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12,padding:"9px 11px",borderRadius:9,background:projet.statut==="valide"?"#E8F5E9":"#FFF8E1"}}>
+          <div style={{flex:1,minWidth:150,fontSize:11.5,fontWeight:800,color:projet.statut==="valide"?"#2E7D32":"#B8860B"}}>{projet.statut==="valide"?("Validé le "+fmt(projet.valideLe)+" par "+(projet.validePar||"?")):"Version de travail — non validée"}{verrou?" · lecture seule":""}</div>
+          {estDir&&projet.statut!=="valide"&&<button onClick={valider} style={{...S.btnP,fontSize:11.5,padding:"6px 13px"}}><Check size={13}/>Valider</button>}
+          {estDir&&projet.statut==="valide"&&<button onClick={rouvrir} style={{...S.btnO,fontSize:11.5,padding:"6px 13px"}}>Rouvrir</button>}
+          <button onClick={async()=>{try{await projetPDF(projet,sel,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,fontSize:11.5,padding:"6px 13px"}}><Download size={13}/>PDF</button>
+        </div>
+        {(projet.reouvertures||[]).length>0&&<div style={{fontSize:10,color:C.light,marginBottom:10}}>{(projet.reouvertures||[]).map((r,i)=><div key={i}>Rouvert le {fmt(r.date)} par {r.par}{r.motif?" — "+r.motif:""}</div>)}</div>}
+        {!verrou&&<div style={{...S.card,background:C.sableLight,marginBottom:14}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:2}}>Observation express</div>
+          <div style={{fontSize:10,color:C.light,marginBottom:8}}>Une ligne suffit. C'est ce que vous voyez au quotidien qui nourrit le projet.</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>{DOM.map(d=><button key={d.k} onClick={()=>setObsDom(obsDom===d.k?"":d.k)} style={{padding:"5px 11px",borderRadius:15,border:"1.5px solid "+(obsDom===d.k?C.gold:C.border),background:obsDom===d.k?C.gold:C.white,color:obsDom===d.k?C.white:C.mid,fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.l}</button>)}</div>
+          <textarea value={obsTxt} onChange={e=>setObsTxt(e.target.value)} placeholder="Ce que j'ai observé aujourd'hui…" style={{...S.inp,minHeight:56,resize:"vertical"}}/>
+          <button onClick={addObs} style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:8}}><Plus size={14}/>Enregistrer l'observation</button>
+        </div>}
+        {(projet.observations||[]).length>0&&<div style={{marginBottom:14}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:6}}>Observations ({(projet.observations||[]).length})</div>
+          {(projet.observations||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,12).map(o=>(<div key={o.id} style={{padding:"8px 10px",background:"#f8f9fa",borderRadius:8,marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:6}}><div style={{fontSize:10,fontWeight:700,color:C.light}}>{fmt(o.date)} — {o.par}{o.domaine&&DOM.find(d=>d.k===o.domaine)?" · "+DOM.find(d=>d.k===o.domaine).l:""}</div>{!verrou&&<button onClick={()=>delObs(o.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:12}}>✕</button>}</div>
+            <div style={{fontSize:12.5,color:C.dark,marginTop:3,whiteSpace:"pre-wrap"}}>{o.texte}</div>
+          </div>))}
+        </div>}
         <div style={{marginBottom:14}}>
           <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:6}}>Échéances du séjour</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{ech.map(e=>{const st=echStatut(e.due,e.fait);return<div key={e.k} style={{flex:"1 1 46%",minWidth:150,padding:"7px 10px",borderRadius:8,background:st.bg,border:"1px solid "+st.c+"33"}}><div style={{fontSize:11,fontWeight:800,color:C.dark}}>{e.l}</div><div style={{fontSize:10,color:C.mid}}>{e.due?"Échéance "+fmt(e.due):"—"}</div><div style={{fontSize:10,fontWeight:800,color:st.c,marginTop:2}}>{st.l}</div></div>;})}</div>
@@ -753,14 +922,14 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
         <div style={{marginBottom:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
           <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:6}}>Document individuel de prise en charge</div>
           <label style={{...S.lbl}}>Remis au jeune / titulaires le</label>
-          <input type="date" style={{...S.inp}} value={projet.dipcRemisLe||""} onChange={e=>upd({dipcRemisLe:e.target.value})}/>
+          <input disabled={verrou} type="date" style={{...S.inp}} value={projet.dipcRemisLe||""} onChange={e=>upd({dipcRemisLe:e.target.value})}/>
           <div style={{fontSize:10,color:C.light,marginTop:4}}>Art. D.311 CASF : remise dans les 15 jours suivant l'admission.</div>
         </div>
         <div style={{marginBottom:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
           <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:2}}>Participation du jeune {partTracee?<span style={{fontSize:10,color:"#2E7D32"}}>✓ tracée</span>:<span style={{fontSize:10,color:"#C62828"}}>non tracée</span>}</div>
           <div style={{fontSize:10,color:C.light,marginBottom:8}}>Art. L.311-3 7° CASF : participation directe à la conception et à la mise en œuvre du projet.</div>
           <label style={{...S.lbl}}>Date de l'entretien de co-construction</label>
-          <input type="date" style={{...S.inp,marginBottom:10}} value={part.dateEntretien||""} onChange={e=>updPart("dateEntretien",e.target.value)}/>
+          <input disabled={verrou} type="date" style={{...S.inp,marginBottom:10}} value={part.dateEntretien||""} onChange={e=>updPart("dateEntretien",e.target.value)}/>
           <label style={{...S.lbl}}>Avis et attentes exprimés par le jeune</label>
           <textarea key={selId+"-aj"} defaultValue={part.avisJeune||""} onBlur={e=>updPart("avisJeune",e.target.value)} placeholder="Retranscrire les mots du jeune" style={{...S.inp,minHeight:80,resize:"vertical",marginBottom:10}}/>
           {!isMaj&&<><label style={{...S.lbl}}>Avis des titulaires de l'autorité parentale</label>
@@ -769,7 +938,7 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
           {part.refus&&<><label style={{...S.lbl,marginTop:8}}>Motif du refus / démarches engagées</label><textarea key={selId+"-mr"} defaultValue={part.motifRefus||""} onBlur={e=>updPart("motifRefus",e.target.value)} style={{...S.inp,minHeight:50,resize:"vertical"}}/></>}
         </div>
         <div style={{paddingTop:12,borderTop:"1px solid "+C.border}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Objectifs ({(projet.objectifs||[]).length})</div><button onClick={()=>setShowObj(!showObj)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Objectif</button></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Objectifs ({(projet.objectifs||[]).length})</div><button disabled={verrou} onClick={()=>setShowObj(!showObj)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Objectif</button></div>
           <div style={{fontSize:10,color:C.light,marginBottom:8}}>{isMaj?"Domaines du contrat jeune majeur (trame interne)":"Domaines de vie du référentiel PPE — art. D.223-12 CASF"}</div>
           {showObj&&<div style={{...S.card,background:C.sableLight,marginBottom:10}}>
             <label style={{...S.lbl}}>Domaine de vie</label>
@@ -810,7 +979,7 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
           {(projet.objectifs||[]).length===0&&<div style={{fontSize:12,color:C.light,padding:"8px 0"}}>Aucun objectif défini.</div>}
         </div>
         <div style={{paddingTop:12,borderTop:"1px solid "+C.border}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Révisions / avenants ({(projet.revisions||[]).length})</div><button onClick={()=>setShowRev(!showRev)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Révision</button></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:800,fontSize:13,color:C.dark}}>Révisions / avenants ({(projet.revisions||[]).length})</div><button disabled={verrou} onClick={()=>setShowRev(!showRev)} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Plus size={12}/>Révision</button></div>
           {showRev&&<div style={{...S.card,background:C.sableLight,marginBottom:10}}>
             <label style={{...S.lbl}}>Nature</label>
             <select style={{...S.inp,marginBottom:8}} value={revType} onChange={e=>setRevType(e.target.value)}><option>Avenant initial (objectifs et prestations)</option><option>Révision mi-séjour</option><option>Révision exceptionnelle</option><option>Actualisation annuelle</option></select>
@@ -1561,7 +1730,7 @@ function AgendaPage({agenda,setAgenda,jeunes,majeurs,users,user}){
  </div>);
 }
 
-function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP,users,addR,addE}){
+function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP,users,addR,addE,onUpdateMajeur}){
  const[tab,setTab]=useState("fiche");
  const[showFormR,setShowFormR]=useState(false);
  const[showFormE,setShowFormE]=useState(false);
@@ -1577,7 +1746,7 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  const mr=(rapports||[]).filter(r=>r.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
  const me=(evenements||[]).filter(e=>e.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
  const mp=Object.entries(presences||{}).filter(([k])=>k.startsWith("2")).reduce((acc,[date,v])=>{if(v[majeur.id])acc[date]=v[majeur.id];return acc;},{});
- const tabs=["fiche","rapports","incidents","presences"];
+ const tabs=["fiche","rapports","stages","incidents","presences"];
  const TC_LABELS={journee:"Journée du jeune",rdv_parents:"RDV tél. parents",rdv_exterieur:"RDV tél. contact ext."};
  const submitR=()=>{if(!rObs.trim())return alert("Observation requise");addR&&addR({jeuneId:majeur.id,date:rDate,observation:rObs.trim(),typeContact:rTC});setRObs("");setRTC("journee");setShowFormR(false);};
  const submitE=()=>{if(!eTitre.trim())return alert("Titre requis");addE&&addE({jeuneId:majeur.id,date:eDate,titre:eTitre.trim(),description:eDesc.trim(),gravite:eGrav,type:eType,categorie:"jeune",site:majeur.site||null,eig:eEig,eigData:eEig?{destinataires:"",dateTransmission:"",accuseReception:false,statutCloture:"En cours"}:null});setETitre("");setEDesc("");setEEig(false);setShowFormE(false);};
@@ -1592,7 +1761,8 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto",paddingBottom:4}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t==="presences"?"Présences":t}</button>)}</div>
  {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",majeur.prenom],["Nom",majeur.nom||"-"],["Site",majeur.site],["Statut",majeur.statut],["Début",majeur.dateDebut||"-"],["Fin",majeur.dateFin||"-"],["Email ASE",majeur.emailASE||"-"],["Tel parent",majeur.telParent1||"-"],["Tel jeune",majeur.telJeune||"-"],["Référent A",majeur.referentA||"-"],["Référent B",majeur.referentB||"-"]].map(([k,v])=><div key={k}><div style={{fontSize:10,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
  {tab==="rapports"&&<div>{showFormR?<div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Nouveau rapport</div><label style={{...S.lbl}}>Date</label><input type="date" value={rDate} onChange={e=>setRDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Type de contact</label><select value={rTC} onChange={e=>setRTC(e.target.value)} style={{...S.inp,marginBottom:8}}><option value="journee">Journée du jeune</option><option value="rdv_parents">RDV tél. parents</option><option value="rdv_exterieur">RDV tél. contact ext.</option></select><label style={{...S.lbl}}>Observation</label><textarea value={rObs} onChange={e=>setRObs(e.target.value)} placeholder="Observation..." rows={4} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6}}><button onClick={submitR} style={{...S.btnP,background:"#2E7D32",borderColor:"#2E7D32"}}>Enregistrer</button><button onClick={()=>setShowFormR(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{mr.length===0&&!showFormR?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:mr.map(r=><div key={r.id} style={{...S.card,marginBottom:8}}><div style={{fontSize:11,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)} · {TC_LABELS[r.typeContact]||"Journalier"}{r.author&&<span style={{fontWeight:400,fontSize:11,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}{!showFormR&&<button onClick={()=>setShowFormR(true)} style={{...S.btnP,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Nouveau rapport</button>}</div>}
- {tab==="incidents"&&<div>{showFormE?<div style={{...S.card,borderLeft:`4px solid ${C.orange}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Déclarer un événement</div><label style={{...S.lbl}}>Date</label><input type="date" value={eDate} onChange={e=>setEDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}><div><label style={{...S.lbl}}>Type</label><select value={eType} onChange={e=>setEType(e.target.value)} style={{...S.inp}}><option value="incident">Incident</option><option value="plainte">Plainte</option><option value="reclamation">Réclamation</option></select></div><div><label style={{...S.lbl}}>Gravité</label><select value={eGrav} onChange={e=>setEGrav(e.target.value)} style={{...S.inp}}><option>Léger</option><option>Moyen</option><option>Grave</option></select></div></div><label style={{...S.lbl}}>Qualification</label><select value={eEig?"oui":"non"} onChange={e=>setEEig(e.target.value==="oui")} style={{...S.inp,marginBottom:8}}><option value="non">Événement indésirable simple</option><option value="oui">EIG — signalement obligatoire (art. L331-8-1 CASF)</option></select><label style={{...S.lbl}}>Titre</label><input value={eTitre} onChange={e=>setETitre(e.target.value)} placeholder="Titre" style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Description</label><textarea value={eDesc} onChange={e=>setEDesc(e.target.value)} placeholder="Description..." rows={3} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6}}><button onClick={submitE} style={{...S.btnP}}>Enregistrer</button><button onClick={()=>setShowFormE(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{me.length===0&&!showFormE?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:me.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,marginBottom:8,borderLeft:`4px solid ${gc.dot}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:800,color:C.dark}}>{e.titre}</span><div style={{display:"flex",gap:5}}>{e.eig&&<span style={{background:"#C62828",color:"#fff",borderRadius:4,padding:"2px 8px",fontSize:10,fontWeight:800}}>EIG</span>}<span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{GC[e.gravite]?e.gravite:"Léger"}</span></div></div><div style={{fontSize:12,color:C.mid,marginTop:4}}>{e.description}</div><div style={{fontSize:10,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" — par "+e.author}</div></div>);})}{!showFormE&&<button onClick={()=>setShowFormE(true)} style={{...S.btnO,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Déclarer un événement</button>}</div>}
+ {tab==="stages"&&<StagesPanel sujet={majeur} user={user} users={users} onUpdate={onUpdateMajeur}/>}
+      {tab==="incidents"&&<div>{showFormE?<div style={{...S.card,borderLeft:`4px solid ${C.orange}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Déclarer un événement</div><label style={{...S.lbl}}>Date</label><input type="date" value={eDate} onChange={e=>setEDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}><div><label style={{...S.lbl}}>Type</label><select value={eType} onChange={e=>setEType(e.target.value)} style={{...S.inp}}><option value="incident">Incident</option><option value="plainte">Plainte</option><option value="reclamation">Réclamation</option></select></div><div><label style={{...S.lbl}}>Gravité</label><select value={eGrav} onChange={e=>setEGrav(e.target.value)} style={{...S.inp}}><option>Léger</option><option>Moyen</option><option>Grave</option></select></div></div><label style={{...S.lbl}}>Qualification</label><select value={eEig?"oui":"non"} onChange={e=>setEEig(e.target.value==="oui")} style={{...S.inp,marginBottom:8}}><option value="non">Événement indésirable simple</option><option value="oui">EIG — signalement obligatoire (art. L331-8-1 CASF)</option></select><label style={{...S.lbl}}>Titre</label><input value={eTitre} onChange={e=>setETitre(e.target.value)} placeholder="Titre" style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Description</label><textarea value={eDesc} onChange={e=>setEDesc(e.target.value)} placeholder="Description..." rows={3} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6}}><button onClick={submitE} style={{...S.btnP}}>Enregistrer</button><button onClick={()=>setShowFormE(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{me.length===0&&!showFormE?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:me.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,marginBottom:8,borderLeft:`4px solid ${gc.dot}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:800,color:C.dark}}>{e.titre}</span><div style={{display:"flex",gap:5}}>{e.eig&&<span style={{background:"#C62828",color:"#fff",borderRadius:4,padding:"2px 8px",fontSize:10,fontWeight:800}}>EIG</span>}<span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{GC[e.gravite]?e.gravite:"Léger"}</span></div></div><div style={{fontSize:12,color:C.mid,marginTop:4}}>{e.description}</div><div style={{fontSize:10,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" — par "+e.author}</div></div>);})}{!showFormE&&<button onClick={()=>setShowFormE(true)} style={{...S.btnO,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Déclarer un événement</button>}</div>}
  {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune présence enregistrée</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:11,color:C.light}}>Après-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"✅":"❌"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"✅":"❌"}</td></tr>)}</tbody></table></div>}</div>}
  </div>);
 }
@@ -1997,7 +2167,7 @@ function PresEduc({user,users,entries,onSave,onDelete}){
     </div>)}
   </div>);
 }
-function EspaceRH({user,docs,users,onAdd,onSign,onDelete,onUpdateUsers}){
+function EspaceRH({user,docs,users,onAdd,onSign,onDelete,onUpdateUsers,etabConfig}){
   const[rhTab,setRhTab]=useState("docs");const[demForm,setDemForm]=useState(false);const[demType,setDemType]=useState("conges");const[demMotif,setDemMotif]=useState("");const[demD1,setDemD1]=useState("");const[demD2,setDemD2]=useState("");const[demMontant,setDemMontant]=useState("");const[demObjet,setDemObjet]=useState("");const[demQui,setDemQui]=useState("");
   const[cat,setCat]=useState("Document");const[dest,setDest]=useState(user.role==="educateur"?user.name:"Tous");const[signId,setSignId]=useState(null);const[uploading,setUploading]=useState(false);
   const isEnc=user.role!=="educateur";
@@ -2050,7 +2220,10 @@ function EspaceRH({user,docs,users,onAdd,onSign,onDelete,onUpdateUsers}){
               </div>
             </div>}
           </div>}
-          {estDir&&<div style={{fontSize:11,color:C.light,marginBottom:10}}>Demandes de l'ensemble du personnel. {liste.filter(d=>d.statut==="en_attente").length} en attente.</div>}
+          {estDir&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+            <div style={{fontSize:11,color:C.light}}>Demandes de l'ensemble du personnel. {liste.filter(d=>d.statut==="en_attente").length} en attente.</div>
+            <button onClick={async()=>{try{await demandesPDF(liste,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,fontSize:11,padding:"5px 12px"}}><Download size={13}/>Exporter en PDF</button>
+          </div>}
           {liste.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucune demande.</div>}
           {liste.map(d=>{const st=DEM_ST[d.statut]||DEM_ST.en_attente;return(<div key={d._uid+"-"+d.id} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+st.c}}>
             <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
@@ -2393,7 +2566,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:11,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
-        {page==="majeur-detail"&&sel&&<MajeurDetail majeur={sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
+        {page==="majeur-detail"&&sel&&<MajeurDetail majeur={(appMajeurs||[]).find(m=>m.id===sel.id)||sel} onUpdateMajeur={(id,field,val)=>setAppMajeurs(prev=>(prev||[]).map(m=>m.id===id?{...m,[field]:val}:m))} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
         {page==="jeune-detail"&&sel&&<JeuneDetail jeune={appJeunes.find(j=>j.id===sel.id)||sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="rapports"&&<Rapports user={effUser} rapports={rapports} jeunes={appJeunes} onSave={addR} onDelete={delR} onUpdate={(id,field,val)=>setRapports(p=>p.map(r=>r.id===id?{...r,[field]:val}:r))} onPatch={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} majeurs={appMajeurs}/>}
         {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP} onDelP={delP} jeunes={appJeunes}/>}
@@ -2409,7 +2582,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="rapport-hebdo"&&<RapportHebdo user={effUser} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
         {page==="projets"&&<ProjetsPersonnalises user={effUser} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets} etabConfig={etabConfig} users={appUsers}/>}
       {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={effUser.site} user={effUser} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
-        {page==="espace-rh"&&<EspaceRH user={effUser} docs={docs} users={appUsers} onUpdateUsers={setAppUsers} onAdd={(d)=>setDocs(p=>[...p,d])} onSign={(id,sig)=>setDocs(p=>p.map(x=>x.id===id?{...x,signatures:[...(x.signatures||[]),sig]}:x))} onDelete={(id)=>setDocs(p=>p.filter(x=>x.id!==id))}/>}
+        {page==="espace-rh"&&<EspaceRH user={effUser} docs={docs} users={appUsers} onUpdateUsers={setAppUsers} etabConfig={etabConfig} onAdd={(d)=>setDocs(p=>[...p,d])} onSign={(id,sig)=>setDocs(p=>p.map(x=>x.id===id?{...x,signatures:[...(x.signatures||[]),sig]}:x))} onDelete={(id)=>setDocs(p=>p.filter(x=>x.id!==id))}/>}
       </div></main>
     </div>
   </div>);
