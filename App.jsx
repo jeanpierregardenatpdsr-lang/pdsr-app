@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-d";
+const APP_BUILD="2026-09-01-h";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -88,10 +88,11 @@ function StagesPanel({sujet,user,users,onUpdate}){
   const save=(arr)=>onUpdate(sujet.id,"stages",arr);
   const add=()=>{if(!f.intitule.trim()||!f.structure.trim()){alert("L'intitulé et la structure d'accueil sont obligatoires.");return;}save([...stages,{id:Date.now(),...f,statut:"Prévu",appreciations:[],bilan:"",creePar:(user&&user.name)||"",creeLe:isoToday()}]);setF({intitule:"",structure:"",lieu:"",tuteur:"",telTuteur:"",referent:"",dateDebut:"",dateFin:"",heures:""});setForm(false);};
   const patch=(id,p)=>save(stages.map(s=>s.id===id?{...s,...p}:s));
-  const del=(id)=>{if(confirm("Supprimer ce stage ?"))save(stages.filter(s=>s.id!==id));};
+  const encadrant=user&&(user.role==="chef_service"||user.role==="directeur");
+  const del=(id)=>{if(!encadrant){alert("La suppression d'un stage est réservée au chef de service et au directeur.");return;}if(confirm("Supprimer ce stage et toutes ses appréciations ?"))save(stages.filter(s=>s.id!==id));};
   const addApp=(st)=>{const a={id:Date.now(),date:isoToday(),par:(user&&user.name)||"",notes:{},texte:""};patch(st.id,{appreciations:[...((st.appreciations)||[]),a]});};
   const patchApp=(st,aid,p)=>patch(st.id,{appreciations:((st.appreciations)||[]).map(a=>a.id===aid?{...a,...p}:a)});
-  const delApp=(st,aid)=>{if(confirm("Supprimer cette appréciation ?"))patch(st.id,{appreciations:((st.appreciations)||[]).filter(a=>a.id!==aid)});};
+  const delApp=(st,aid)=>{const a=((st.appreciations)||[]).find(x=>x.id===aid);if(!encadrant&&a&&a.par&&a.par!==(user&&user.name)){alert("Vous ne pouvez supprimer que vos propres appréciations.");return;}if(confirm("Supprimer cette appréciation ?"))patch(st.id,{appreciations:((st.appreciations)||[]).filter(x=>x.id!==aid)});};
   const F=(k,l,type)=>(<div><label style={{...S.lbl}}>{l}</label><input type={type||"text"} style={{...S.inp}} value={f[k]} onChange={e=>setF(p=>({...p,[k]:e.target.value}))}/></div>);
   return(<div>
     {!form&&<button onClick={()=>setForm(true)} style={{...S.btnP,width:"100%",justifyContent:"center",marginBottom:12}}><Plus size={14}/>Ajouter un stage</button>}
@@ -107,7 +108,7 @@ function StagesPanel({sujet,user,users,onUpdate}){
       <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:150}}><div style={{fontSize:14,fontWeight:800,color:C.dark}}>{st.intitule}</div><div style={{fontSize:11.5,color:C.mid}}>{st.structure}{st.lieu?" · "+st.lieu:""}</div></div>
         <select value={st.statut} onChange={e=>patch(st.id,{statut:e.target.value})} style={{...S.inp,width:"auto",fontSize:12,padding:"4px 8px",background:sc.bg,color:sc.c,fontWeight:700,border:"1px solid "+sc.c}}>{STAGE_ST.map(x=><option key={x}>{x}</option>)}</select>
-        <button onClick={()=>del(st.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+        {encadrant&&<button onClick={()=>del(st.id)} title="Supprimer le stage" style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>}
       </div>
       <div style={{fontSize:11.5,color:C.mid,marginTop:6,lineHeight:1.6}}>
         {st.dateDebut||st.dateFin?<div>Du {st.dateDebut?fmt(st.dateDebut):"?"} au {st.dateFin?fmt(st.dateFin):"?"}{nb?" ("+nb+" j)":""}{st.heures?" · "+st.heures+" h/sem.":""}</div>:null}
@@ -117,7 +118,7 @@ function StagesPanel({sujet,user,users,onUpdate}){
       <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><div style={{fontSize:12,fontWeight:800,color:C.dark}}>Appréciations ({((st.appreciations)||[]).length})</div><button onClick={()=>addApp(st)} style={{...S.btnO,fontSize:12,padding:"4px 11px"}}><Plus size={12}/>Ajouter</button></div>
         {((st.appreciations)||[]).map(a=>(<div key={a.id} style={{padding:"9px 10px",background:"#f8f9fa",borderRadius:8,marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><div style={{fontSize:12,fontWeight:700,color:C.light}}>{fmt(a.date)} — {a.par}</div><button onClick={()=>delApp(st,a.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:13}}>✕</button></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap"}}><div style={{fontSize:12,fontWeight:700,color:C.light}}>{fmt(a.date)} — {a.par}</div>{(encadrant||!a.par||a.par===(user&&user.name))&&<button onClick={()=>delApp(st,a.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:13}}>✕</button>}</div>
           {APP_CRIT.map(cr=>(<div key={cr.k} style={{marginBottom:5}}>
             <div style={{fontSize:12,fontWeight:700,color:C.mid,marginBottom:3}}>{cr.l}</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{APP_NIV.map(n=><button key={n} onClick={()=>patchApp(st,a.id,{notes:{...(a.notes||{}),[cr.k]:n}})} style={{padding:"3px 9px",borderRadius:14,border:"1.5px solid "+((a.notes||{})[cr.k]===n?C.gold:C.border),background:(a.notes||{})[cr.k]===n?C.gold:C.white,color:(a.notes||{})[cr.k]===n?C.white:C.mid,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{n}</button>)}</div>
@@ -202,6 +203,31 @@ async function projetPDF(projet,sujet,etab){
   L("Le directeur :",{size:9.5,gap:6});
   pdfPied(doc,"Document confidentiel — projet personnalisé");
   doc.save("projet_"+String((sujet.prenom||"")+"_"+(sujet.nom||"")).replace(/[^A-Za-z0-9]+/g,"_")+".pdf");
+}
+async function registrePDF(lignes,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const st={y:pdfEntete(doc,etab,"REGISTRE DES PERSONNES ACCUEILLIES","Art. L. 331-2 du code de l'action sociale et des familles")};
+  const L=pdfEcrivain(doc,st);
+  L("Registre destiné à être coté et paraphé (art. R. 331-5 CASF). Tenu en permanence à la disposition des autorités judiciaires et administratives compétentes. Toute personne appelée par ses fonctions à en prendre connaissance est tenue au secret professionnel (art. 226-13 du code pénal).",{size:8.5,gap:4.2,color:[120,110,90]});
+  st.y+=3;
+  const cols=[[16,10],[26,62],[88,26],[114,32],[146,32],[178,16]];
+  const head=["N°","Nom et prénom","Site","Date d'entrée","Date de sortie","Feuillet"];
+  const ligne=(vals,bold)=>{
+    if(st.y>268){doc.addPage();st.y=20;}
+    doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);
+    vals.forEach((v,i)=>doc.text(String(v==null?"":v),cols[i][0],st.y,{maxWidth:cols[i][1]-2}));
+    st.y+=4.2;doc.setDrawColor(bold?180:228,bold?160:222,bold?110:212);doc.line(16,st.y-2.8,194,st.y-2.8);
+  };
+  ligne(head,true);
+  lignes.forEach((l,i)=>ligne([i+1,(l.nom||"")+" "+(l.prenom||""),l.site||"—",l.entree?fmt(l.entree):"—",l.sortie?fmt(l.sortie):"—",""]));
+  st.y+=6;
+  L("Observations des autorités et agents chargés du contrôle (art. L. 331-3 CASF)",{size:9,bold:true,gap:6,color:[150,110,20]});
+  for(let i=0;i<4;i++){if(st.y>268){doc.addPage();st.y=20;}doc.setDrawColor(215,205,185);doc.line(16,st.y,194,st.y);st.y+=8;}
+  st.y+=4;
+  L("Coté et paraphé le .............................. par ..............................",{size:9,gap:10});
+  L("Le directeur :",{size:9,gap:6});
+  pdfPied(doc,"Registre L. 331-2 CASF — document confidentiel");
+  doc.save("registre_personnes_accueillies_"+isoToday()+".pdf");
 }
 async function demandesPDF(liste,etab,titre){
   const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
@@ -1181,7 +1207,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registre L.331-2"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:12,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1220,6 +1246,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <div><div style={{fontWeight:800,fontSize:14,color:C.dark}}>{u.name}</div><div style={{fontSize:12,color:C.light}}>{roleLabel(u.role)} · {u.email||u.login}{u.site&&u.site!=="Tous"?" · "+u.site:""}</div></div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {u.role==="coordinateur_site"&&<button onClick={()=>{if(!confirm("Retirer le rôle de coordinateur à "+u.name+" ? Le compte redevient éducateur et conserve son historique."))return;onUpdateUsers((users||[]).map(x=>x.id===u.id?{...x,role:"educateur",updatedAt:new Date().toISOString()}:x));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #6A1B9A",background:"#F3E5F5",color:"#6A1B9A",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Retirer coordinateur</button>}
               <button onClick={()=>toggleEduc(u.id)} style={{padding:"4px 10px",borderRadius:6,border:u.disabled?"1px solid #2E7D32":"1px solid #E65100",background:u.disabled?"#E8F5E9":"#FFF3E0",color:u.disabled?"#2E7D32":"#E65100",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{u.disabled?"Activer":"Désactiver"}</button>
               <button onClick={()=>resetPwd(u)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Réinit. MDP</button>
               {u.role!=="directeur"&&<button onClick={()=>{if(confirm("Supprimer le compte de "+u.name+" ?"))onUpdateUsers(users.filter(x=>x.id!==u.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>}
@@ -1498,6 +1525,31 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
           </div>
           {!verrou&&entManquants(cur).length>0&&<div style={{fontSize:12,color:"#C62828",fontWeight:700,marginTop:8}}>{entManquants(cur).length} champ(s) obligatoire(s) restant(s).</div>}
         </div>}
+      </div>);})()}
+
+    {tab==="registre"&&(()=>{
+      const lignes=[...(jeunes||[]),...(appMajeurs||[])].map(p=>({nom:p.nom||"",prenom:p.prenom||"",site:p.site||"",entree:normDate(p.dateDebut),sortie:normDate(p.dateFin)})).sort((a,b)=>String(a.entree||"9").localeCompare(String(b.entree||"9"))||String(a.nom).localeCompare(String(b.nom)));
+      const sansEntree=lignes.filter(l=>!l.entree).length;
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des personnes accueillies</h3>
+          <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 331-2 CASF : identité des personnes séjournant dans l'établissement, date d'entrée et date de sortie. Coté et paraphé selon l'art. R. 331-5. Tenu en permanence à la disposition des autorités judiciaires et administratives. Les agents de contrôle le signent et y consignent leurs observations (art. L. 331-3).</div>
+          {sansEntree>0&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:700,marginTop:8}}>{sansEntree} fiche(s) sans date d'entrée : le registre est incomplet au regard de l'article L. 331-2.</div>}
+          <button onClick={async()=>{try{await registrePDF(lignes,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,marginTop:12}}><Download size={14}/>Éditer le registre (PDF)</button>
+        </div>
+        <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:460}}>
+            <thead><tr style={{background:C.sableLight}}>{["N°","Nom et prénom","Site","Entrée","Sortie"].map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{lignes.map((l,i)=>(<tr key={i} style={{borderTop:"1px solid "+C.border}}>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.light}}>{i+1}</td>
+              <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{l.nom} {l.prenom}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.site||"—"}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:l.entree?C.mid:"#C62828",fontWeight:l.entree?600:800}}>{l.entree?fmt(l.entree):"manquante"}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.sortie?fmt(l.sortie):"—"}</td>
+            </tr>))}</tbody>
+          </table>
+          {lignes.length===0&&<div style={{fontSize:12,color:C.light,padding:"10px 8px"}}>Aucune personne accueillie enregistrée.</div>}
+        </div>
       </div>);})()}
 
     {tab==="projets-cfg"&&(()=>{const cfg=projCfg(etabConfig);const setCfg=(k,v)=>{const n=parseInt(v,10);if(onUpdateEtab)onUpdateEtab(prev=>({...prev,projet:{...projCfg(prev),[k]:isNaN(n)?0:n}}));};const pool=opPool.filter(j=>matchOp(j.id)&&j.statut!=="archivé"&&j.statut!=="inactif");const FIELDS=[["delaiDipc","Remise du DIPC","Art. D.311 CASF : 15 jours maximum"],["delaiObjectifs","Pose des objectifs","Avenant : 6 mois maximum au sens du décret, à raccourcir sur un séjour court"],["delaiRevision","Révision de mi-séjour","Pratique interne"],["delaiBilan","Bilan de fin de séjour","Pratique interne"]];return(<div>
@@ -1983,7 +2035,7 @@ return(<div style={{maxWidth:600,margin:"0 auto"}}>
         <div style={{fontWeight:800,fontSize:12.5,color:C.dark}}>{fr} → {to}</div>
         <div style={{fontSize:12,color:C.light,fontWeight:600}}>{(r.t||[]).map(x=>L[x]||x).join(", ")} · purgé le {(r.ts||"").slice(0,10).split("-").reverse().join("/")}</div>
       </div>
-      <button onClick={()=>{if(confirm("Annuler cette purge ? Les éléments encore présents dans le cloud réapparaîtront."))onCancelRange(r.ts);}} style={{padding:"6px 13px",borderRadius:8,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontWeight:800,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Annuler cette purge</button>
+      <button disabled={!peutPurger} title={peutPurger?"":"Réservé à l'administrateur"} onClick={()=>{if(!peutPurger){alert("Seul l'administrateur peut annuler une purge.");return;}if(confirm("Annuler cette purge ? Les éléments encore présents dans le cloud réapparaîtront."))onCancelRange(r.ts);}} style={{padding:"6px 13px",borderRadius:8,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontWeight:800,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Annuler cette purge</button>
     </div>);})}
 </div>}
 </div>);
@@ -2620,7 +2672,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="intendance"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<Intendance user={effUser} items={intendance} onSave={r=>{const isNew=!(intendance||[]).some(x=>x.id===r.id);setIntendance(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif(r.urgence==="Urgente"?"intendance_urgente":"intendance",r.urgence==="Urgente"?"Demande d’intendance URGENTE":"Demande d’intendance",(r.objet||"")+(r.description?" — "+String(r.description).slice(0,80):""),r.site||"");}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"intendance",origId:id,date:new Date().toISOString()}]);setIntendance(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="pres-educ"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<PresEduc user={effUser} users={appUsers} entries={suiviEduc} onSave={r=>{setSuiviEduc(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"suiviEduc",origId:id,date:new Date().toISOString()}]);setSuiviEduc(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{const isNew=!(rapportsSite||[]).some(x=>x.id===r.id);setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif("rapport_site","Rapport de site déposé",(r.site||"")+((r.semaine||r.periode)?" · "+(r.semaine||r.periode):""),r.site||"");}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now()+"_rapportSite_"+id,type:"rapportSite",origId:id,date:new Date().toISOString()}]);setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
-        {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage peutPurger={!!effUser.isAdmin} purgeRanges={(purgeMarks&&purgeMarks.ranges)||[]} onCancelRange={(ts)=>{setPurgeMarks(prev=>({...prev,ranges:(prev.ranges||[]).filter(r=>r.ts!==ts)}));}} sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts,ranges:[...(prev&&prev.ranges||[]),{t:[sc.rapports&&"rapport",sc.evenements&&"evenement",sc.agenda&&"agenda",sc.rapportsSite&&"rapportSite"].filter(Boolean),from,to,ts}].slice(-15)}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
+        {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage peutPurger={!!effUser.isAdmin} purgeRanges={(purgeMarks&&purgeMarks.ranges)||[]} onCancelRange={(ts)=>{if(!effUser||!effUser.isAdmin){alert("Seul l'administrateur peut annuler une purge.");return;}setPurgeMarks(prev=>({...prev,ranges:(prev.ranges||[]).filter(r=>r.ts!==ts)}));}} sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts,ranges:[...(prev&&prev.ranges||[]),{t:[sc.rapports&&"rapport",sc.evenements&&"evenement",sc.agenda&&"agenda",sc.rapportsSite&&"rapportSite"].filter(Boolean),from,to,ts}].slice(-15)}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
       {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onResetGlobal={async()=>{
    const stamp=Date.now();
    setAppJeunes([]);setAppMajeurs([]);setRapports([]);setEvenements([]);setPresences([]);setProjets([]);setAgenda([]);
