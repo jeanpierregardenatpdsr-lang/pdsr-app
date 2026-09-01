@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-n";
+const APP_BUILD="2026-09-01-o";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -1762,14 +1762,11 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
       const lastRap={};(rapports||[]).forEach(r=>{const d=r.date||"";if(!lastRap[r.jeuneId]||d>lastRap[r.jeuneId])lastRap[r.jeuneId]=d;});
       const sansRef=actifs.filter(j=>!j.referentA&&!j.referentB);
       const sansRapport=actifs.filter(j=>{const d=lastRap[j.id];if(!d)return true;return (new Date(today)-new Date(d))/86400000>3;});
-      const joursEcoules=WEEKDATES.filter(d=>d<=today);
-      const presManq=actifs.map(j=>({j,manque:joursEcoules.filter(d=>!(presences||[]).some(p=>p.jeuneId===j.id&&p.date===d)).length})).filter(x=>x.manque>0);
       const eigProb=(evenements||[]).filter(e=>e.eig&&(!e.eigData||!e.eigData.dateTransmission));
       const projRetard=[];actifs.forEach(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));const objs=(p&&p.objectifs)||[];const r=objs.filter(o=>o.echeance&&o.echeance<today&&o.statut!=="Atteint");if(r.length)projRetard.push(j.prenom+" "+j.nom+" — "+r.length+" obj.");});
       const blocks=[
         {t:"Bénéficiaires sans référent",col:"#C62828",items:sansRef.map(j=>j.prenom+" "+j.nom)},
         {t:"Sans rapport depuis plus de 3 jours",col:"#E65100",items:sansRapport.map(j=>j.prenom+" "+j.nom+(lastRap[j.id]?" (dernier "+fmt(lastRap[j.id])+")":" (aucun)"))},
-        {t:"Présences manquantes cette semaine",col:"#E65100",items:presManq.map(x=>x.j.prenom+" "+x.j.nom+" — "+x.manque+" j")},
         {t:"EIG non transmis aux autorités",col:"#C62828",items:eigProb.map(e=>opName(e.jeuneId)+" — "+(e.titre||""))},
         {t:"Projets avec objectifs en retard",col:"#E65100",items:projRetard}
       ];
