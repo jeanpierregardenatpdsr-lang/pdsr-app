@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-t";
+const APP_BUILD="2026-09-01-w";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -345,6 +345,94 @@ async function projetPDF(projet,sujet,etab,user,numEdition){
   L("Le directeur :",{size:9.5,gap:6});
   pdfPied(doc,"Document confidentiel — projet personnalisé","Édition n° "+(numEdition||1)+" — tirée le "+horoFR()+" par "+((user&&user.name)||"—"));
   doc.save("projet_"+String((sujet.prenom||"")+"_"+(sujet.nom||"")).replace(/[^A-Za-z0-9]+/g,"_")+".pdf");
+}
+const REG_TYPES=[
+ {k:"securite",l:"Sécurité incendie (ERP)",ref:"Art. R. 143-44 CCH",aide:"Contrôles et vérifications techniques, exercices d'évacuation, travaux d'aménagement, état du personnel du service de sécurité, consignes, incidents ayant une incidence sur la sécurité."},
+ {k:"atbenin",l:"Accidents du travail bénins",ref:"Art. L. 441-4 CSS",aide:"Accidents n'ayant entraîné ni arrêt de travail ni soins médicaux : date, lieu, circonstances, nature des lésions, témoins."},
+ {k:"dgi",l:"Dangers graves et imminents",ref:"Art. D. 4132-1 code du travail",aide:"Avis de danger grave et imminent, droit de retrait : poste concerné, nature du danger, personnes exposées, suites données."},
+ {k:"acces",l:"Accessibilité",ref:"Art. L. 164-1 et R. 164-6 CCH",aide:"Pièces relatives à l'accessibilité des lieux, prestations fournies, formation du personnel d'accueil."}];
+async function registreExcel(nomFichier,feuille,titre,ref,entetes,lignes,largeurs,etab){
+  const XLSX=await loadXLSX();
+  const aoa=[[((etab&&etab.raisonSociale)||"Association PDSR")+" — "+titre],[ref],["Édité le "+fmt(isoToday())],[],entetes];
+  lignes.forEach(l=>aoa.push(l));
+  if(!lignes.length)aoa.push(["Aucune ligne enregistrée."]);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=(largeurs||entetes.map(()=>20)).map(w=>({wch:w}));
+  ws["!freeze"]={xSplit:0,ySplit:5};
+  if(lignes.length)ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:4,c:0},e:{r:4+lignes.length,c:entetes.length-1}})};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,feuille.slice(0,28));
+  XLSX.writeFile(wb,nomFichier+"_"+isoToday()+".xlsx");
+}
+async function registreConsignPDF(type,lignes,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const t=REG_TYPES.find(x=>x.k===type)||REG_TYPES[0];
+  const s={y:pdfEntete(doc,etab,"REGISTRE — "+t.l.toUpperCase(),t.ref)};
+  const L=pdfEcrivain(doc,s);
+  L(t.aide,{size:8.5,gap:4.2,color:[120,110,90]});s.y+=3;
+  const cols=[[16,10],[26,24],[50,52],[102,52],[154,40]];
+  const ligne=(v,b)=>{if(s.y>268){doc.addPage();s.y=20;}doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(8.3);doc.setTextColor(40,40,40);
+    v.forEach((x,i)=>doc.text(String(x==null?"":x),cols[i][0],s.y,{maxWidth:cols[i][1]-2}));
+    s.y+=4.6;doc.setDrawColor(b?180:228,b?160:222,b?110:212);doc.line(16,s.y-3.1,194,s.y-3.1);};
+  ligne(["N°","Date","Objet de la consignation","Suites données","Consigné par"],true);
+  lignes.forEach((l,i)=>ligne([i+1,l.date?fmt(l.date):"—",l.objet||"",l.suites||"—",l.par||"—"]));
+  if(!lignes.length)ligne(["","","Aucune consignation enregistrée.","",""]);
+  s.y+=8;L("Visa de l'exploitant :"+"                                        "+"Visa de la commission de contrôle :",{size:9,gap:16});
+  pdfPied(doc,"Registre "+t.l+" — "+t.ref,"Tiré le "+horoFR());
+  doc.save("registre_"+type+"_"+isoToday()+".pdf");
+}
+async function registrePersonnelPDF(lignes,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const s={y:pdfEntete(doc,etab,"REGISTRE UNIQUE DU PERSONNEL","Articles L. 1221-13 et D. 1221-23 du code du travail")};
+  const L=pdfEcrivain(doc,s);
+  L("Les nom et prénoms de tous les salariés sont inscrits dans l'ordre d'embauche. Les mentions sont portées de façon indélébile et conservées cinq ans à compter du départ du salarié.",{size:8.5,gap:4.2,color:[120,110,90]});s.y+=3;
+  const cols=[[16,10],[26,46],[72,40],[112,26],[138,26],[164,30]];
+  const ligne=(v,b)=>{if(s.y>268){doc.addPage();s.y=20;}doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(8.3);doc.setTextColor(40,40,40);
+    v.forEach((x,i)=>doc.text(String(x==null?"":x),cols[i][0],s.y,{maxWidth:cols[i][1]-2}));
+    s.y+=4.6;doc.setDrawColor(b?180:228,b?160:222,b?110:212);doc.line(16,s.y-3.1,194,s.y-3.1);};
+  ligne(["N°","Nom et prénom","Emploi","Site","Entrée","Sortie"],true);
+  lignes.forEach((l,i)=>ligne([i+1,l.nom,l.emploi,l.site||"—",l.entree?fmt(l.entree):"—",l.sortie?fmt(l.sortie):"—"]));
+  s.y+=8;L("Le directeur :",{size:9,gap:6});
+  pdfPied(doc,"Registre unique du personnel — document confidentiel","Tiré le "+horoFR());
+  doc.save("registre_personnel_"+isoToday()+".pdf");
+}
+async function registreDepotsPDF(lignes,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const s={y:pdfEntete(doc,etab,"REGISTRE DES DÉPÔTS DE BIENS ET VALEURS","Articles L. 1113-1 et R. 1113-1 à R. 1113-9 du code de la santé publique")};
+  const L=pdfEcrivain(doc,s);
+  L("Toute personne admise est invitée, lors de son entrée, à déposer les objets dont la nature justifie la détention durant son séjour. Les dépôts s'effectuent entre les mains du directeur ou d'un préposé désigné par lui (art. R. 1113-2).",{size:8.5,gap:4.2,color:[120,110,90]});
+  s.y+=3;
+  const cols=[[16,10],[26,42],[68,44],[112,26],[138,24],[162,32]];
+  const ligne=(v,b)=>{if(s.y>268){doc.addPage();s.y=20;}doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(8.3);doc.setTextColor(40,40,40);
+    v.forEach((t,i)=>doc.text(String(t==null?"":t),cols[i][0],s.y,{maxWidth:cols[i][1]-2}));
+    s.y+=4.4;doc.setDrawColor(b?180:228,b?160:222,b?110:212);doc.line(16,s.y-3,194,s.y-3);};
+  ligne(["N°","Bénéficiaire","Objet déposé","Déposé le","Reçu par","Restitution"],true);
+  lignes.forEach((l,i)=>ligne([i+1,l.qui,l.objet,l.date?fmt(l.date):"—",l.recuPar||"—",l.restitueLe?fmt(l.restitueLe)+" — "+(l.restituePar||""):"en dépôt"]));
+  if(!lignes.length)ligne(["","Aucun dépôt enregistré.","","","",""]);
+  s.y+=8;L("Coté et paraphé le .............................. par ..............................",{size:9,gap:10});
+  L("Le directeur :",{size:9,gap:6});
+  pdfPied(doc,"Registre des dépôts — document confidentiel","Tiré le "+horoFR());
+  doc.save("registre_depots_"+isoToday()+".pdf");
+}
+async function registreEIGPDF(lignes,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const s={y:pdfEntete(doc,etab,"REGISTRE DES DYSFONCTIONNEMENTS GRAVES","Article L. 331-8-1 du code de l'action sociale et des familles")};
+  const L=pdfEcrivain(doc,s);
+  L("Les dysfonctionnements graves et les événements ayant pour effet de menacer ou de compromettre la santé, la sécurité ou le bien-être des personnes accueillies sont déclarés sans délai aux autorités. Le conseil de la vie sociale, ou à défaut les groupes d'expression, en sont avisés.",{size:8.5,gap:4.2,color:[120,110,90]});
+  s.y+=3;
+  const cols=[[16,10],[26,22],[48,40],[88,46],[134,30],[164,30]];
+  const ligne=(v,b)=>{if(s.y>268){doc.addPage();s.y=20;}doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(8.3);doc.setTextColor(40,40,40);
+    v.forEach((t,i)=>doc.text(String(t==null?"":t),cols[i][0],s.y,{maxWidth:cols[i][1]-2}));
+    s.y+=4.4;doc.setDrawColor(b?180:228,b?160:222,b?110:212);doc.line(16,s.y-3,194,s.y-3);};
+  ligne(["N°","Date","Bénéficiaire","Nature des faits","Transmis le","Destinataires"],true);
+  lignes.forEach((l,i)=>ligne([i+1,l.date?fmt(l.date):"—",l.qui,String(l.nature||"").slice(0,70),l.transmisLe?fmt(l.transmisLe):"NON TRANSMIS",String(l.destinataires||"—").slice(0,40)]));
+  if(!lignes.length)ligne(["","","Aucun événement enregistré.","","",""]);
+  s.y+=8;
+  const nt=lignes.filter(l=>!l.transmisLe).length;
+  if(nt)L(nt+" événement(s) non transmis aux autorités à la date d'édition.",{size:9,bold:true,gap:8,color:[198,40,40]});
+  L("Le directeur :",{size:9,gap:6});
+  pdfPied(doc,"Registre L. 331-8-1 CASF — document confidentiel","Tiré le "+horoFR());
+  doc.save("registre_dysfonctionnements_"+isoToday()+".pdf");
 }
 async function registrePDF(lignes,etab){
   const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
@@ -1384,7 +1472,8 @@ function ArchivesSejours({currentUser}){
 }
 
 function Admin({djiPlan,fatPlan,onBulkPlan,users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,onResetGlobal,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
-  const[tab,setTab]=useState("educs");const[planSite,setPlanSite]=useState("Fatick");const[planD1,setPlanD1]=useState("");const[planD2,setPlanD2]=useState("");const[planMode,setPlanMode]=useState("rotation");const[planBascule,setPlanBascule]=useState("0");const[planDebut,setPlanDebut]=useState("a");const[planEcraser,setPlanEcraser]=useState(false);
+  const[tab,setTab]=useState("educs");const[regTab,setRegTab]=useState("accueil");const[cgType,setCgType]=useState("securite");const[cgDate,setCgDate]=useState(isoToday());const[cgObjet,setCgObjet]=useState("");const[cgSuites,setCgSuites]=useState("");const[depQui,setDepQui]=useState("");const[depObjet,setDepObjet]=useState("");const[depDate,setDepDate]=useState(isoToday());
+const[planSite,setPlanSite]=useState("Fatick");const[planD1,setPlanD1]=useState("");const[planD2,setPlanD2]=useState("");const[planMode,setPlanMode]=useState("rotation");const[planBascule,setPlanBascule]=useState("0");const[planDebut,setPlanDebut]=useState("a");const[planEcraser,setPlanEcraser]=useState(false);
 const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);const[logTab,setLogTab]=useState("connexions");
   const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");const[editRapDate,setEditRapDate]=useState("");const[editRapJeune,setEditRapJeune]=useState("");
   const[integrity,setIntegrity]=useState(null);const[viewAsId,setViewAsId]=useState("");
@@ -1426,7 +1515,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registre L.331-2"},{k:"planning-cfg",l:"Planning"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registres obligatoires"},{k:"planning-cfg",l:"Planning"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:12,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1743,6 +1832,242 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <button onClick={async()=>{try{await entretienPDF(cur,sal,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button>
           </div>
           {!verrou&&entManquants(cur).length>0&&<div style={{fontSize:12,color:"#C62828",fontWeight:700,marginTop:8}}>{entManquants(cur).length} champ(s) obligatoire(s) restant(s).</div>}
+        </div>}
+      </div>);})()}
+
+    {tab==="planning-cfg"&&(()=>{
+      const plan=planSite==="Djilass"?(djiPlan||{}):(fatPlan||{});
+      const JOURS=[["0","dimanche"],["1","lundi"],["2","mardi"],["3","mercredi"],["4","jeudi"],["5","vendredi"],["6","samedi"]];
+      const jours=()=>{const out=[];if(!planD1||!planD2)return out;let d=new Date(planD1+"T12:00:00");const fin=new Date(planD2+"T12:00:00");if(isNaN(d)||isNaN(fin)||d>fin)return out;
+        while(d<=fin){out.push({key:d.toISOString().slice(0,10),wd:d.getDay()});d=new Date(d.getTime()+86400000);}return out;};
+      const liste=jours();
+      const calcul=()=>{const res={};let eq=planDebut;let init=false;
+        liste.forEach((j,idx)=>{
+          if(planMode==="rotation"){ if(idx>0&&String(j.wd)===planBascule)eq=(eq==="a"?"b":"a"); if(!init)init=true;
+            res[j.key]={a:eq==="a",b:eq==="b"}; }
+          else if(planMode==="deux")res[j.key]={a:true,b:true};
+          else if(planMode==="a")res[j.key]={a:true,b:false};
+          else if(planMode==="b")res[j.key]={a:false,b:true};
+          else res[j.key]={a:false,b:false};
+        });return res;};
+      const proj=calcul();
+      const protege=(k)=>{if(planEcraser)return false;const ex=plan[k];if(!ex||typeof ex!=="object")return false;return !!(ex.n||ex.v);};
+      const aEcrire=Object.keys(proj).filter(k=>!protege(k));
+      const proteges=Object.keys(proj).length-aEcrire.length;
+      const appliquer=()=>{
+        if(!aEcrire.length){alert("Les "+Object.keys(proj).length+" jours de cette période portent tous une note ou un congé, ils sont donc protégés.\n\nCochez « Écraser les jours déjà renseignés » pour les remplacer malgré tout.");return;}
+        if(!confirm("Appliquer le modèle sur "+aEcrire.length+" jour(s) du site "+planSite+" ?"+(proteges?"\n\n"+proteges+" jour(s) avec note ou congé seront gardés tels quels.":"")))return;
+        const maj={};aEcrire.forEach(k=>{maj[k]={...(plan[k]||{}),...proj[k]};});
+        onBulkPlan(planSite,maj);
+        alert(aEcrire.length+" jour(s) mis à jour.");
+      };
+      const apercu=liste.slice(0,14);
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Générer le planning</h3>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:12}}>Remplit les jours d'une période selon un modèle de rotation. Les jours déjà renseignés sont conservés, sauf si vous cochez l'écrasement.</div>
+          <label style={{...S.lbl}}>Site</label>
+          <div style={{display:"flex",gap:7,marginBottom:12,flexWrap:"wrap"}}>{["Fatick","Djilass"].map(x=><button key={x} onClick={()=>setPlanSite(x)} style={{padding:"7px 16px",borderRadius:20,border:"1.5px solid "+(planSite===x?C.gold:C.border),background:planSite===x?C.gold:C.white,color:planSite===x?C.white:C.mid,fontWeight:700,fontSize:12.5,cursor:"pointer",fontFamily:"inherit"}}>{x}</button>)}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <div><label style={{...S.lbl}}>Du</label><input type="date" style={{...S.inp}} value={planD1} onChange={e=>setPlanD1(e.target.value)}/></div>
+            <div><label style={{...S.lbl}}>Au</label><input type="date" style={{...S.inp}} value={planD2} onChange={e=>setPlanD2(e.target.value)}/></div>
+          </div>
+          <label style={{...S.lbl}}>Modèle</label>
+          <select style={{...S.inp,marginBottom:12}} value={planMode} onChange={e=>setPlanMode(e.target.value)}>
+            <option value="rotation">Rotation des équipes</option>
+            <option value="deux">Les deux équipes tous les jours</option>
+            <option value="a">Équipe A seule</option>
+            <option value="b">Équipe B seule</option>
+            <option value="vide">Aucune équipe (vider)</option>
+          </select>
+          {planMode==="rotation"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <div><label style={{...S.lbl}}>Bascule le</label><select style={{...S.inp}} value={planBascule} onChange={e=>setPlanBascule(e.target.value)}>{JOURS.map(j=><option key={j[0]} value={j[0]}>{j[1]}</option>)}</select></div>
+            <div><label style={{...S.lbl}}>Commence par</label><select style={{...S.inp}} value={planDebut} onChange={e=>setPlanDebut(e.target.value)}><option value="a">Équipe A</option><option value="b">Équipe B</option></select></div>
+          </div>}
+          <label style={{display:"flex",alignItems:"center",gap:9,fontSize:13,fontWeight:700,color:C.dark,cursor:"pointer",padding:"9px 11px",borderRadius:8,background:planEcraser?"#FFEBEE":"transparent",border:"1.5px solid "+(planEcraser?"#C62828":C.border)}}>
+            <input type="checkbox" checked={planEcraser} onChange={e=>setPlanEcraser(e.target.checked)} style={{accentColor:"#C62828",width:17,height:17}}/>Écraser aussi les jours avec note ou congé</label>
+        </div>
+        {liste.length>0&&<div style={{...S.card,marginBottom:12}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:C.dark,marginBottom:4}}>Aperçu — {liste.length} jour(s), {aEcrire.length} à écrire{proteges?", "+proteges+" gardé(s)":""}</div>
+          <div style={{fontSize:11,color:C.light,marginBottom:8}}>Seuls les jours portant une note (arrivée, départ, RHO…) ou un congé sont gardés. Les jours qui n'ont qu'une équipe seront remplacés.</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{apercu.map(j=>{const q=proj[j.key];const lab=q.a&&q.b?"A+B":q.a?"A":q.b?"B":"—";const bg=q.a&&q.b?"#e0e7ff":q.a?"#fef3c7":q.b?"#dbeafe":C.sableLight;const gar=aEcrire.indexOf(j.key)<0;
+            return(<div key={j.key} style={{minWidth:58,padding:"6px 4px",borderRadius:7,background:bg,border:"1px solid "+(gar?"#C62828":"transparent"),textAlign:"center",opacity:gar?0.5:1}}>
+              <div style={{fontSize:11,color:C.light}}>{fmt(j.key).slice(0,5)}</div>
+              <div style={{fontSize:12.5,fontWeight:800,color:C.dark}}>{lab}</div>
+              {gar&&<div style={{fontSize:10,color:"#C62828",fontWeight:800}}>gardé</div>}
+            </div>);})}</div>
+          {liste.length>14&&<div style={{fontSize:11,color:C.light,marginTop:6}}>Les 14 premiers jours sont affichés.</div>}
+        </div>}
+        <button onClick={appliquer} disabled={!liste.length} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Check size={15}/>Appliquer au planning</button>
+        <div style={{...S.card,marginTop:14}}>
+          <div style={{fontSize:13.5,fontWeight:800,color:C.dark,marginBottom:4}}>Exporter les plannings</div>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Un classeur Excel, une feuille par site, regroupé par mois : date, jour, équipe A, équipe B, congé, observations.</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
+            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);await planningPDF("Djilass",djiPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
+          </div>
+        </div>
+      </div>);})()}
+
+    {tab==="registre"&&(()=>{
+      const pool=[...(jeunes||[]),...(appMajeurs||[])];
+      const accueil=pool.map(p2=>({nom:p2.nom||"",prenom:p2.prenom||"",site:p2.site||"",entree:normDate(p2.dateDebut),sortie:normDate(p2.dateFin)})).sort((a,b)=>String(a.entree||"9").localeCompare(String(b.entree||"9"))||String(a.nom).localeCompare(String(b.nom)));
+      const sansEntree=accueil.filter(l=>!l.entree).length;
+      const depots=[];pool.forEach(p2=>((p2.depots)||[]).forEach(d=>depots.push({...d,qui:(p2.prenom||"")+" "+(p2.nom||""),_uid:p2.id})));
+      depots.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+      const eig=(evenements||[]).filter(e=>e.gravite==="eig"||e.eig||(e.eigData&&Object.keys(e.eigData).length)).map(e=>{const q=pool.find(x=>String(x.id)===String(e.jeuneId));const ed=e.eigData||{};
+        return{date:e.date,qui:q?(q.prenom||"")+" "+(q.nom||""):"—",nature:e.description||e.type||"",transmisLe:ed.dateTransmission||ed.dateTransmiss||"",destinataires:ed.destinataires||""};}).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+      const majDepots=(uid,arr)=>{const cible=(jeunes||[]).some(x=>x.id===uid);
+        if(cible)onUpdateJeunes((jeunes||[]).map(x=>x.id===uid?{...x,depots:arr}:x));
+        else onUpdateMajeurs(null,null,null,(appMajeurs||[]).map(x=>x.id===uid?{...x,depots:arr}:x));};
+      const ajoutDepot=()=>{if(!depQui||!depObjet.trim()){alert("Choisissez un bénéficiaire et décrivez l'objet déposé.");return;}
+        const p3=pool.find(x=>String(x.id)===String(depQui));if(!p3)return;
+        majDepots(p3.id,[...((p3.depots)||[]),{id:Date.now(),date:depDate,objet:depObjet.trim(),recuPar:(currentUser&&currentUser.name)||"",restitueLe:"",restituePar:""}]);
+        setDepObjet("");};
+      const restituer=(d)=>{const p3=pool.find(x=>String(x.id)===String(d._uid));if(!p3)return;
+        if(!confirm("Enregistrer la restitution de « "+d.objet+" » ?"))return;
+        majDepots(p3.id,((p3.depots)||[]).map(x=>x.id===d.id?{...x,restitueLe:isoToday(),restituePar:(currentUser&&currentUser.name)||""}:x));};
+      const supprDepot=(d)=>{const p3=pool.find(x=>String(x.id)===String(d._uid));if(!p3)return;
+        if(!confirm("Supprimer cette ligne du registre ?"))return;
+        majDepots(p3.id,((p3.depots)||[]).filter(x=>x.id!==d.id));};
+      const consign=((etabConfig&&etabConfig.registres)||{});
+      const majConsign=(k,arr)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,registres:{...((prev&&prev.registres)||{}),[k]:arr}}));
+      const lignesCg=(consign[cgType]||[]).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+      const ajoutCg=()=>{if(!cgObjet.trim()){alert("Décrivez l'objet de la consignation.");return;}
+        majConsign(cgType,[...(consign[cgType]||[]),{id:Date.now(),date:cgDate,objet:cgObjet.trim(),suites:cgSuites.trim(),par:(currentUser&&currentUser.name)||""}]);
+        setCgObjet("");setCgSuites("");};
+      const supprCg=(id)=>{if(confirm("Supprimer cette consignation ?"))majConsign(cgType,(consign[cgType]||[]).filter(x=>x.id!==id));};
+      const personnel=(users||[]).filter(u=>u.role!=="jeune").map(u=>({nom:u.name||"",emploi:roleLabel(u.role),site:u.site||"",entree:normDate(u.dateEmbauche),sortie:normDate(u.dateSortie)}));
+      const ONGLETS=[["accueil","Personnes accueillies","L. 331-2 CASF"],["depots","Dépôts de biens et valeurs","R. 1113-1 CSP"],["eig","Dysfonctionnements graves","L. 331-8-1 CASF"],["consign","Sécurité et travail","CCH · CSS · c. travail"],["personnel","Registre du personnel","L. 1221-13 c. travail"]];
+      return(<div>
+        <div style={{display:"flex",gap:7,marginBottom:12,flexWrap:"wrap"}}>{ONGLETS.map(o=><button key={o[0]} onClick={()=>setRegTab(o[0])} style={{padding:"7px 14px",borderRadius:20,border:"1.5px solid "+(regTab===o[0]?C.gold:C.border),background:regTab===o[0]?C.gold:C.white,color:regTab===o[0]?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{o[1]}</button>)}</div>
+
+        {regTab==="accueil"&&<div>
+          <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+            <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des personnes accueillies</h3>
+            <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 331-2 CASF : identité des personnes séjournant dans l'établissement, date d'entrée et date de sortie. Coté et paraphé par le maire (art. R. 331-5). Tenu en permanence à la disposition des autorités judiciaires et administratives. Les agents de contrôle le signent et y consignent leurs observations (art. L. 331-3).</div>
+            {sansEntree>0&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:700,marginTop:8}}>{sansEntree} fiche(s) sans date d'entrée : le registre est incomplet.</div>}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePDF(accueil,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnes_accueillies","Personnes accueillies","Registre des personnes accueillies","Art. L. 331-2 CASF",["N°","Nom","Prénom","Site","Entrée","Sortie"],accueil.map((l,i)=>[i+1,l.nom,l.prenom,l.site,l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,22,20,12,14,14],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+          </div>
+          <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:460}}>
+              <thead><tr style={{background:C.sableLight}}>{["N°","Nom et prénom","Site","Entrée","Sortie"].map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+              <tbody>{accueil.map((l,i)=>(<tr key={i} style={{borderTop:"1px solid "+C.border}}>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.light}}>{i+1}</td>
+                <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{l.nom} {l.prenom}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.site||"—"}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:l.entree?C.mid:"#C62828",fontWeight:l.entree?600:800}}>{l.entree?fmt(l.entree):"manquante"}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.sortie?fmt(l.sortie):"—"}</td>
+              </tr>))}</tbody>
+            </table>
+            {accueil.length===0&&<div style={{fontSize:12,color:C.light,padding:"10px 8px"}}>Aucune personne accueillie enregistrée.</div>}
+          </div>
+        </div>}
+
+        {regTab==="depots"&&<div>
+          <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+            <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des dépôts de biens et valeurs</h3>
+            <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. R. 1113-1 CSP : toute personne admise est invitée, lors de son entrée, à déposer les objets dont la nature justifie la détention durant son séjour. Les dépôts s'effectuent entre les mains du directeur ou d'un préposé désigné par lui (art. R. 1113-2).</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}}>
+              <div><label style={{...S.lbl}}>Bénéficiaire</label><select style={{...S.inp}} value={depQui} onChange={e=>setDepQui(e.target.value)}><option value="">-- Choisir --</option>{pool.map(p2=><option key={p2.id} value={p2.id}>{p2.prenom} {p2.nom}</option>)}</select></div>
+              <div><label style={{...S.lbl}}>Date du dépôt</label><input type="date" style={{...S.inp}} value={depDate} onChange={e=>setDepDate(e.target.value)}/></div>
+            </div>
+            <label style={{...S.lbl,marginTop:8}}>Objet déposé</label>
+            <input style={{...S.inp}} value={depObjet} onChange={e=>setDepObjet(e.target.value)} placeholder="Téléphone, papiers d'identité, somme d'argent…"/>
+            <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+              <button onClick={ajoutDepot} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Plus size={14}/>Enregistrer le dépôt</button>
+              <button onClick={async()=>{try{await registreDepotsPDF(depots,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_depots","Dépôts","Registre des dépôts de biens et valeurs","Art. L. 1113-1 et R. 1113-1 à R. 1113-9 CSP",["N°","Bénéficiaire","Objet déposé","Déposé le","Reçu par","Restitué le","Restitué par"],depots.map((l,i)=>[i+1,l.qui,l.objet,l.date?fmt(l.date):"",l.recuPar||"",l.restitueLe?fmt(l.restitueLe):"",l.restituePar||""]),[6,24,34,14,20,14,20],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+            </div>
+          </div>
+          {depots.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucun dépôt enregistré.</div>}
+          {depots.map(d=>(<div key={d._uid+"-"+d.id} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+(d.restitueLe?"#2E7D32":C.gold)}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:150}}>
+                <div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>{d.objet}</div>
+                <div style={{fontSize:11,color:C.light}}>{d.qui} · déposé le {d.date?fmt(d.date):"—"}{d.recuPar?" · reçu par "+d.recuPar:""}</div>
+                {d.restitueLe&&<div style={{fontSize:11,color:"#2E7D32",fontWeight:700,marginTop:2}}>Restitué le {fmt(d.restitueLe)}{d.restituePar?" par "+d.restituePar:""}</div>}
+              </div>
+              {!d.restitueLe&&<button onClick={()=>restituer(d)} style={{...S.btnO,fontSize:11.5,padding:"6px 12px",minHeight:0}}>Restituer</button>}
+              <button onClick={()=>supprDepot(d)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+            </div>
+          </div>))}
+        </div>}
+
+        {regTab==="consign"&&(()=>{const t=REG_TYPES.find(x=>x.k===cgType)||REG_TYPES[0];return(<div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>{REG_TYPES.map(x=><button key={x.k} onClick={()=>setCgType(x.k)} style={{padding:"6px 12px",borderRadius:16,border:"1.5px solid "+(cgType===x.k?C.goldDark:C.border),background:cgType===x.k?C.goldLight:C.white,color:cgType===x.k?C.goldDark:C.mid,fontWeight:700,fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>{x.l}</button>)}</div>
+          <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+            <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 2px",color:C.dark}}>{t.l}</h3>
+            <div style={{fontSize:11,fontWeight:700,color:C.goldDark,marginBottom:6}}>{t.ref}</div>
+            <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55,marginBottom:12}}>{t.aide}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8}}>
+              <div><label style={{...S.lbl}}>Date</label><input type="date" style={{...S.inp}} value={cgDate} onChange={e=>setCgDate(e.target.value)}/></div>
+              <div><label style={{...S.lbl}}>Objet de la consignation</label><textarea style={{...S.inp,minHeight:56,resize:"vertical"}} value={cgObjet} onChange={e=>setCgObjet(e.target.value)}/></div>
+              <div><label style={{...S.lbl}}>Suites données</label><input style={{...S.inp}} value={cgSuites} onChange={e=>setCgSuites(e.target.value)}/></div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+              <button onClick={ajoutCg} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Plus size={14}/>Consigner</button>
+              <button onClick={async()=>{try{await registreConsignPDF(cgType,lignesCg,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_"+cgType,t.l.slice(0,28),"Registre — "+t.l,t.ref,["N°","Date","Objet de la consignation","Suites données","Consigné par"],lignesCg.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.objet||"",l.suites||"",l.par||""]),[6,14,60,40,22],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+            </div>
+          </div>
+          {lignesCg.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucune consignation dans ce registre.</div>}
+          {lignesCg.slice().reverse().map(l=>(<div key={l.id} style={{...S.card,marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:150}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.light}}>{l.date?fmt(l.date):"—"}{l.par?" · "+l.par:""}</div>
+                <div style={{fontSize:13,color:C.dark,marginTop:3,whiteSpace:"pre-wrap"}}>{l.objet}</div>
+                {l.suites&&<div style={{fontSize:12,color:C.mid,marginTop:4}}><b>Suites :</b> {l.suites}</div>}
+              </div>
+              <button onClick={()=>supprCg(l.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+            </div>
+          </div>))}
+        </div>);})()}
+
+        {regTab==="personnel"&&<div>
+          <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+            <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre unique du personnel</h3>
+            <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 1221-13 du code du travail : les nom et prénoms de tous les salariés sont inscrits dans l'ordre des embauches. Les mentions sont portées de façon indélébile et conservées cinq ans après le départ du salarié.</div>
+            <div style={{fontSize:11.5,color:"#C62828",fontWeight:700,marginTop:8}}>Les dates d'embauche et de sortie se renseignent sur la fiche de chaque compte. Celles qui manquent apparaissent en rouge.</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePersonnelPDF(personnel,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnel","Personnel","Registre unique du personnel","Art. L. 1221-13 et D. 1221-23 du code du travail",["N°","Nom et prénom","Emploi","Site","Entrée","Sortie"],personnel.map((l,i)=>[i+1,l.nom,l.emploi,l.site||"",l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,28,22,12,14,14],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+          </div>
+          <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}>
+              <thead><tr style={{background:C.sableLight}}>{["N°","Nom et prénom","Emploi","Site","Entrée","Sortie"].map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+              <tbody>{personnel.map((l,i)=>(<tr key={i} style={{borderTop:"1px solid "+C.border}}>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.light}}>{i+1}</td>
+                <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{l.nom}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.emploi}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.site||"—"}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:l.entree?C.mid:"#C62828",fontWeight:l.entree?600:800}}>{l.entree?fmt(l.entree):"manquante"}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.sortie?fmt(l.sortie):"—"}</td>
+              </tr>))}</tbody>
+            </table>
+          </div>
+        </div>}
+
+        {regTab==="eig"&&<div>
+          <div style={{...S.card,borderLeft:"4px solid #C62828",marginBottom:12}}>
+            <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des dysfonctionnements graves</h3>
+            <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 331-8-1 CASF : les dysfonctionnements graves et les événements ayant pour effet de menacer ou compromettre la santé, la sécurité ou le bien-être des personnes accueillies sont déclarés sans délai aux autorités. Le conseil de la vie sociale, ou à défaut les groupes d'expression, en sont avisés.</div>
+            {eig.filter(e=>!e.transmisLe).length>0&&<div style={{fontSize:12,color:"#C62828",fontWeight:800,marginTop:8}}>{eig.filter(e=>!e.transmisLe).length} événement(s) non transmis aux autorités.</div>}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registreEIGPDF(eig,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_dysfonctionnements","Dysfonctionnements","Registre des dysfonctionnements graves","Art. L. 331-8-1 CASF",["N°","Date","Bénéficiaire","Nature des faits","Transmis le","Destinataires"],eig.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.qui,l.nature,l.transmisLe?fmt(l.transmisLe):"NON TRANSMIS",l.destinataires||""]),[6,14,24,60,16,30],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+          </div>
+          <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}>
+              <thead><tr style={{background:C.sableLight}}>{["Date","Bénéficiaire","Nature des faits","Transmis","Destinataires"].map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+              <tbody>{eig.map((l,i)=>(<tr key={i} style={{borderTop:"1px solid "+C.border}}>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid,whiteSpace:"nowrap"}}>{l.date?fmt(l.date):"—"}</td>
+                <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{l.qui}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{String(l.nature||"").slice(0,80)}</td>
+                <td style={{padding:"6px 8px",fontSize:11.5,fontWeight:800,color:l.transmisLe?"#2E7D32":"#C62828",whiteSpace:"nowrap"}}>{l.transmisLe?fmt(l.transmisLe):"non transmis"}</td>
+                <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.destinataires||"—"}</td>
+              </tr>))}</tbody>
+            </table>
+            {eig.length===0&&<div style={{fontSize:12,color:C.light,padding:"10px 8px"}}>Aucun événement grave enregistré.</div>}
+          </div>
         </div>}
       </div>);})()}
 
