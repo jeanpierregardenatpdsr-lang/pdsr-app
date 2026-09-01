@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-s";
+const APP_BUILD="2026-09-01-t";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -159,6 +159,18 @@ function pdfEcrivain(doc,state){
   };
 }
 const APP_NOTE=(a)=>APP_CRIT.map(c=>c.l+" : "+(((a.notes)||{})[c.k]||"—")).join("   ·   ");
+const dataUrlBlob=(du)=>{const p=String(du||"").split(",");const b64=p[1]||"";if(!b64)return null;const t=((p[0]||"").match(/data:([^;]+)/)||[])[1]||"application/octet-stream";const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new Blob([arr],{type:t});};
+const ouvrirFichier=(doc)=>{
+  try{
+    if(!doc||!doc.dataUrl){alert("Ce fichier n'a pas de contenu enregistré. Il faut le déposer à nouveau.");return;}
+    const blob=dataUrlBlob(doc.dataUrl);
+    if(!blob){alert("Fichier illisible.");return;}
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,"_blank");
+    if(!w){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=doc.name||"document.pdf";document.body.appendChild(a);a.click();document.body.removeChild(a);}
+    setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},120000);
+  }catch(e){alert("Ouverture impossible : "+(e&&e.message?e.message:e));}
+};
 const PLAN_JR=["D","Lu","Ma","Me","Je","Ve","S"];
 const PLAN_MOIS=["JANVIER","FÉVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOÛT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DÉCEMBRE"];
 async function planningExcel(plans,etab){
@@ -1237,12 +1249,12 @@ function PlanningsPDF({user,docs,onAdd,onDelete}){
   const[up,setUp]=useState(false);
   const peut=user.role==="chef_service"||user.role==="directeur"||user.role==="coordinateur_site";
   const liste=(docs||[]).filter(d=>d.categorie==="Planning").sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-  const ouvrir=(d)=>{try{const a=document.createElement("a");a.href=d.dataUrl;a.target="_blank";a.rel="noopener";a.download=d.name;document.body.appendChild(a);a.click();document.body.removeChild(a);}catch(e){alert("Ouverture impossible.");}};
+  const ouvrir=(d)=>ouvrirFichier(d);
   const charger=(e)=>{const f=e.target.files[0];if(!f)return;
     if(f.type!=="application/pdf"){alert("Seuls les fichiers PDF sont acceptés.");e.target.value="";return;}
-    if(f.size>4*1024*1024){alert("Fichier trop volumineux (4 Mo maximum).");e.target.value="";return;}
+    if(f.size>3*1024*1024){alert("Fichier trop volumineux : "+Math.round(f.size/1024/1024*10)/10+" Mo. Maximum 3 Mo.");e.target.value="";return;}
     setUp(true);const r=new FileReader();
-    r.onload=()=>{onAdd({id:Date.now(),name:f.name,type:f.type,size:f.size,dataUrl:r.result,categorie:"Planning",destinataire:"Tous",deposePar:user.name,deposeParId:user.id,date:new Date().toISOString(),signatures:[]});setUp(false);};
+    r.onload=()=>{if(!r.result||String(r.result).indexOf(",")<0){alert("Lecture du fichier incomplète, réessayez.");setUp(false);return;}onAdd({id:Date.now(),name:f.name,type:f.type,size:f.size,dataUrl:r.result,categorie:"Planning",destinataire:"Tous",deposePar:user.name,deposeParId:user.id,date:new Date().toISOString(),signatures:[]});setUp(false);};
     r.onerror=()=>{alert("Erreur de lecture du fichier.");setUp(false);};
     r.readAsDataURL(f);e.target.value="";};
   return(<div style={{...S.card,marginBottom:14}}>
@@ -2568,7 +2580,7 @@ function EspaceRH({user,docs,users,onAdd,onSign,onDelete,onUpdateUsers,etabConfi
   const educs=users.filter(u=>u.role==="educateur");
   const visible=docs.filter(d=>isEnc||d.destinataire==="Tous"||d.destinataire===user.name||d.deposeParId===user.id).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const upload=(e)=>{const f=e.target.files[0];if(!f)return;if(f.size>4*1024*1024){alert("Fichier trop volumineux (max 4 Mo).");e.target.value="";return;}setUploading(true);const reader=new FileReader();reader.onload=()=>{onAdd({id:Date.now(),name:f.name,type:f.type,size:f.size,dataUrl:reader.result,categorie:cat,destinataire:dest,deposePar:user.name,deposeParId:user.id,date:new Date().toISOString(),signatures:[]});setUploading(false);};reader.onerror=()=>{alert("Erreur de lecture du fichier.");setUploading(false);};reader.readAsDataURL(f);e.target.value="";};
-  const dlDoc=(d)=>{const a=document.createElement("a");a.href=d.dataUrl;a.download=d.name;document.body.appendChild(a);a.click();document.body.removeChild(a);};
+  const dlDoc=(d)=>ouvrirFichier(d);
   const fmtDate=(s)=>{try{return new Date(s).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});}catch{return s;}};
   const roleLbl=(r)=>r==="directeur"?"Directeur":r==="chef_service"?"Chef de service":r==="coordinateur_site"?"Coordinateur":"Éducateur";
   const enAtt=(users||[]).reduce((n,u)=>n+((u.demandes)||[]).filter(d=>d.statut==="en_attente").length,0);
