@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-k";
+const APP_BUILD="2026-09-01-m";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -80,7 +80,7 @@ const STAGE_ST=["Prévu","En cours","Terminé","Interrompu"];
 const STAGE_STC={"Prévu":{bg:"#E3F2FD",c:"#1565C0"},"En cours":{bg:"#FFF8E1",c:"#B8860B"},"Terminé":{bg:"#E8F5E9",c:"#2E7D32"},"Interrompu":{bg:"#FFEBEE",c:"#C62828"}};
 const APP_CRIT=[{k:"assiduite",l:"Assiduité et ponctualité"},{k:"comportement",l:"Comportement et savoir-être"},{k:"technique",l:"Acquisition des gestes professionnels"},{k:"autonomie",l:"Autonomie"},{k:"integration",l:"Intégration dans l'équipe"}];
 const APP_NIV=["Insuffisant","En progression","Satisfaisant","Très satisfaisant"];
-function StagesPanel({sujet,user,users,onUpdate}){
+function StagesPanel({sujet,user,users,onUpdate,etabConfig}){
   const stages=(sujet.stages)||[];
   const[form,setForm]=useState(false);
   const[f,setF]=useState({intitule:"",structure:"",lieu:"",tuteur:"",telTuteur:"",referent:"",dateDebut:"",dateFin:"",heures:""});
@@ -108,6 +108,7 @@ function StagesPanel({sujet,user,users,onUpdate}){
       <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:150}}><div style={{fontSize:14,fontWeight:800,color:C.dark}}>{st.intitule}</div><div style={{fontSize:11.5,color:C.mid}}>{st.structure}{st.lieu?" · "+st.lieu:""}</div></div>
         <select value={st.statut} onChange={e=>patch(st.id,{statut:e.target.value})} style={{...S.inp,width:"auto",fontSize:12,padding:"4px 8px",background:sc.bg,color:sc.c,fontWeight:700,border:"1px solid "+sc.c}}>{STAGE_ST.map(x=><option key={x}>{x}</option>)}</select>
+        <button onClick={async()=>{try{await attestationStagePDF(st,sujet,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} title="Attestation de stage" style={{...S.btnO,fontSize:11.5,padding:"5px 11px",minHeight:0}}><Download size={12}/>Attestation</button>
         {encadrant&&<button onClick={()=>del(st.id)} title="Supprimer le stage" style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>}
       </div>
       <div style={{fontSize:11.5,color:C.mid,marginTop:6,lineHeight:1.6}}>
@@ -143,9 +144,12 @@ function pdfEntete(doc,etab,titre,sousTitre){
   if(sousTitre){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(120,110,90);doc.text(sousTitre,M,40);}
   return sousTitre?47:41;
 }
-function pdfPied(doc,mention){
+const horoFR=()=>{const d=new Date();const p2=x=>String(x).padStart(2,"0");return p2(d.getDate())+"/"+p2(d.getMonth()+1)+"/"+d.getFullYear()+" à "+p2(d.getHours())+"h"+p2(d.getMinutes());};
+function pdfPied(doc,mention,tirage){
   const n=doc.getNumberOfPages();
-  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(140,140,140);doc.text(mention+" — page "+i+"/"+n,16,289);}
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(140,140,140);
+    doc.text(mention+" — page "+i+"/"+n,16,286);
+    if(tirage)doc.text(tirage,16,289.5);}
 }
 function pdfEcrivain(doc,state){
   const M=16,LW=210-2*M;
@@ -154,12 +158,47 @@ function pdfEcrivain(doc,state){
     doc.splitTextToSize(String(txt==null?"":txt),LW).forEach(pt=>{if(state.y>272){doc.addPage();state.y=16;}doc.text(pt,M,state.y);state.y+=gap;});
   };
 }
-async function projetPDF(projet,sujet,etab){
+const APP_NOTE=(a)=>APP_CRIT.map(c=>c.l+" : "+(((a.notes)||{})[c.k]||"—")).join("   ·   ");
+async function attestationStagePDF(st,sujet,etab){
+  const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
+  const s={y:pdfEntete(doc,etab,"ATTESTATION DE STAGE","Séjour de remobilisation — "+(sujet.site||""))};
+  const L=pdfEcrivain(doc,s);
+  const rule=()=>{if(s.y>272){doc.addPage();s.y=16;}doc.setDrawColor(200,180,120);doc.line(16,s.y,194,s.y);s.y+=5;};
+  rule();
+  L("Nous soussignés, "+((etab&&etab.raisonSociale)||"Association PDSR")+", attestons que :",{size:10,gap:8});
+  L((sujet.prenom||"")+" "+(sujet.nom||""),{size:16,bold:true,gap:7});
+  L("a effectué un stage au sein de la structure suivante :",{size:10,gap:8});
+  L("Structure : "+(st.structure||"—"),{size:11,bold:true,gap:5.5});
+  if(st.lieu)L("Lieu : "+st.lieu,{size:10,gap:5});
+  L("Intitulé : "+(st.intitule||"—"),{size:10,gap:5});
+  L("Période : du "+(st.dateDebut?fmt(normDate(st.dateDebut)):"—")+" au "+(st.dateFin?fmt(normDate(st.dateFin)):"—")+(st.heures?"   ("+st.heures+" h/semaine)":""),{size:10,gap:5});
+  if(st.tuteur)L("Tuteur : "+st.tuteur,{size:10,gap:5});
+  if(st.referent)L("Référent éducatif : "+st.referent,{size:10,gap:5});
+  L("Statut : "+(st.statut||"—"),{size:10,gap:8});
+  rule();
+  const apps=(st.appreciations)||[];
+  L("ÉVALUATION",{size:11,bold:true,gap:6,color:[150,110,20]});
+  if(!apps.length)L("Aucune appréciation enregistrée.",{size:10,gap:6});
+  apps.forEach(a=>{
+    L(fmt(a.date)+" — "+(a.par||""),{size:9,bold:true,gap:4.4,color:[120,110,90]});
+    L(APP_NOTE(a),{size:9,gap:4.6});
+    if(a.texte)L(a.texte,{size:10,gap:6});
+    s.y+=1;});
+  rule();
+  L("BILAN DE FIN DE STAGE",{size:11,bold:true,gap:6,color:[150,110,20]});
+  L(st.bilan||"Bilan non renseigné.",{size:10.5,gap:7});
+  s.y+=10;
+  L("Fait à "+((etab&&etab.ville)||"Fatick")+", le "+fmt(isoToday()),{size:10,gap:14});
+  L("Le référent éducatif :"+"                                     "+"Le chef de service :",{size:10,gap:16});
+  pdfPied(doc,"Attestation de stage — "+((etab&&etab.raisonSociale)||"Association PDSR"),"Tirée le "+horoFR());
+  doc.save("attestation_stage_"+String((sujet.prenom||"")+"_"+(sujet.nom||"")).replace(/[^A-Za-z0-9]+/g,"_")+".pdf");
+}
+async function projetPDF(projet,sujet,etab,user,numEdition){
   const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
   const isMaj=sujet.id>=100;const DOM=isMaj?PROJ_DOM_MAJEUR:PROJ_DOM_MINEUR;
-  const st={y:pdfEntete(doc,etab,"PROJET PERSONNALISÉ",isMaj?"Contrat jeune majeur — art. L.222-5 CASF":"Art. L.311-3 et L.311-4 CASF — articulation avec le projet pour l'enfant")};
-  const L=pdfEcrivain(doc,st);
-  const rule=()=>{if(st.y>272){doc.addPage();st.y=16;}doc.setDrawColor(200,180,120);doc.line(16,st.y,194,st.y);st.y+=5;};
+  const S2={y:pdfEntete(doc,etab,"PROJET PERSONNALISÉ",isMaj?"Contrat jeune majeur — art. L.222-5 CASF":"Art. L.311-3 et L.311-4 CASF — articulation avec le projet pour l'enfant")};
+  const L=pdfEcrivain(doc,S2);
+  const rule=()=>{if(S2.y>272){doc.addPage();S2.y=16;}doc.setDrawColor(200,180,120);doc.line(16,S2.y,194,S2.y);S2.y+=5;};
   rule();
   L("Bénéficiaire : "+(sujet.prenom||"")+" "+(sujet.nom||""),{bold:true});
   L("Site : "+(sujet.site||"—")+"     Entrée : "+(sujet.dateDebut?fmt(normDate(sujet.dateDebut)):"—")+"     Sortie : "+(sujet.dateFin?fmt(normDate(sujet.dateFin)):"—"));
@@ -183,7 +222,7 @@ async function projetPDF(projet,sujet,etab){
       if(o.moyens)L("   Moyens : "+o.moyens,{size:9,gap:4.2,color:[90,90,90]});
       if(o.indicateur)L("   Indicateur : "+o.indicateur,{size:9,gap:4.2,color:[90,90,90]});
       if(o.referent||o.echeance)L("   Référent : "+(o.referent||"—")+"   Échéance : "+(o.echeance?fmt(o.echeance):"—"),{size:9,gap:5,color:[90,90,90]});
-    });st.y+=1;});
+    });S2.y+=1;});
   const sansDom=objs.filter(o=>!o.domaine);
   if(sansDom.length){L("Objectifs non rattachés",{size:9.5,bold:true,gap:5,color:[150,40,40]});sansDom.forEach(o=>L("• "+o.titre,{size:9.5,gap:4.5}));}
   rule();
@@ -194,39 +233,50 @@ async function projetPDF(projet,sujet,etab){
   const obs=projet.observations||[];
   if(obs.length){rule();L("OBSERVATIONS DE TERRAIN ("+obs.length+")",{size:11,bold:true,gap:6,color:[150,110,20]});
     obs.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(o=>{L(fmt(o.date)+" — "+(o.par||"")+((o.domaine&&DOM.find(d=>d.k===o.domaine))?" · "+DOM.find(d=>d.k===o.domaine).l:""),{size:8.5,bold:true,gap:4,color:[120,110,90]});L(o.texte||"",{size:9.5,gap:5});});}
+  const stg=(sujet.stages)||[];
+  if(stg.length){rule();L("STAGES ET MISES EN SITUATION ("+stg.length+")",{size:11,bold:true,gap:6,color:[150,110,20]});
+    stg.forEach(st=>{
+      L((st.intitule||"Stage")+" — "+(st.structure||""),{size:10,bold:true,gap:4.6});
+      L("Du "+(st.dateDebut?fmt(normDate(st.dateDebut)):"—")+" au "+(st.dateFin?fmt(normDate(st.dateFin)):"—")+"   ·   "+(st.statut||"—")+(st.tuteur?"   ·   tuteur : "+st.tuteur:""),{size:9,gap:4.6,color:[110,105,90]});
+      ((st.appreciations)||[]).forEach(a=>{L("   "+fmt(a.date)+" — "+APP_NOTE(a),{size:8.5,gap:4,color:[95,95,95]});if(a.texte)L("   "+a.texte,{size:9,gap:4.6});});
+      if(st.bilan)L("   Bilan : "+st.bilan,{size:9.5,gap:5.5});
+      S2.y+=1;});}
   if(projet.bilan&&(projet.bilan.date||projet.bilan.texte)){rule();L("BILAN DE FIN DE SÉJOUR",{size:11,bold:true,gap:6,color:[150,110,20]});L("Rédigé le "+(projet.bilan.date?fmt(projet.bilan.date):"—")+" par "+(projet.bilan.par||"—"),{size:9,gap:5});L(projet.bilan.texte||"—",{size:9.5,gap:6});}
   rule();
   L("VALIDATION",{size:11,bold:true,gap:6,color:[150,110,20]});
   L(projet.statut==="valide"?("Validé le "+fmt(projet.valideLe)+" par "+(projet.validePar||"—")):"Document non validé — version de travail",{size:10,bold:true,gap:6,color:projet.statut==="valide"?[46,125,50]:[198,40,40]});
+  L("Cette édition (n° "+(numEdition||1)+") reflète l'état du dossier au "+horoFR()+". Une édition ultérieure pourra différer si le dossier évolue.",{size:8.5,gap:5,color:[120,110,90]});
+  const edPrec=(projet.editions||[]).slice(0,-1);
+  if(edPrec.length)L("Éditions précédentes : "+edPrec.map(e=>"n° "+e.n+" le "+fmt(e.date)+(e.par?" par "+e.par:"")).join("   ·   "),{size:8,gap:5,color:[140,132,115]});
   (projet.reouvertures||[]).forEach(r=>L("Rouvert le "+fmt(r.date)+" par "+(r.par||"—")+(r.motif?" — "+r.motif:""),{size:8.5,gap:4,color:[120,110,90]}));
-  st.y+=8;L("Le référent éducatif :"+"                              "+"Le chef de service :",{size:9.5,gap:16});
+  S2.y+=8;L("Le référent éducatif :"+"                              "+"Le chef de service :",{size:9.5,gap:16});
   L("Le directeur :",{size:9.5,gap:6});
-  pdfPied(doc,"Document confidentiel — projet personnalisé");
+  pdfPied(doc,"Document confidentiel — projet personnalisé","Édition n° "+(numEdition||1)+" — tirée le "+horoFR()+" par "+((user&&user.name)||"—"));
   doc.save("projet_"+String((sujet.prenom||"")+"_"+(sujet.nom||"")).replace(/[^A-Za-z0-9]+/g,"_")+".pdf");
 }
 async function registrePDF(lignes,etab){
   const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
-  const st={y:pdfEntete(doc,etab,"REGISTRE DES PERSONNES ACCUEILLIES","Art. L. 331-2 du code de l'action sociale et des familles")};
-  const L=pdfEcrivain(doc,st);
+  const S2={y:pdfEntete(doc,etab,"REGISTRE DES PERSONNES ACCUEILLIES","Art. L. 331-2 du code de l'action sociale et des familles")};
+  const L=pdfEcrivain(doc,S2);
   L("Registre destiné à être coté et paraphé (art. R. 331-5 CASF). Tenu en permanence à la disposition des autorités judiciaires et administratives compétentes. Toute personne appelée par ses fonctions à en prendre connaissance est tenue au secret professionnel (art. 226-13 du code pénal).",{size:8.5,gap:4.2,color:[120,110,90]});
-  st.y+=3;
+  S2.y+=3;
   const cols=[[16,10],[26,62],[88,26],[114,32],[146,32],[178,16]];
   const head=["N°","Nom et prénom","Site","Date d'entrée","Date de sortie","Feuillet"];
   const ligne=(vals,bold)=>{
-    if(st.y>268){doc.addPage();st.y=20;}
+    if(S2.y>268){doc.addPage();S2.y=20;}
     doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(8.5);doc.setTextColor(40,40,40);
-    vals.forEach((v,i)=>doc.text(String(v==null?"":v),cols[i][0],st.y,{maxWidth:cols[i][1]-2}));
-    st.y+=4.2;doc.setDrawColor(bold?180:228,bold?160:222,bold?110:212);doc.line(16,st.y-2.8,194,st.y-2.8);
+    vals.forEach((v,i)=>doc.text(String(v==null?"":v),cols[i][0],S2.y,{maxWidth:cols[i][1]-2}));
+    S2.y+=4.2;doc.setDrawColor(bold?180:228,bold?160:222,bold?110:212);doc.line(16,S2.y-2.8,194,S2.y-2.8);
   };
   ligne(head,true);
   lignes.forEach((l,i)=>ligne([i+1,(l.nom||"")+" "+(l.prenom||""),l.site||"—",l.entree?fmt(l.entree):"—",l.sortie?fmt(l.sortie):"—",""]));
-  st.y+=6;
+  S2.y+=6;
   L("Observations des autorités et agents chargés du contrôle (art. L. 331-3 CASF)",{size:9,bold:true,gap:6,color:[150,110,20]});
-  for(let i=0;i<4;i++){if(st.y>268){doc.addPage();st.y=20;}doc.setDrawColor(215,205,185);doc.line(16,st.y,194,st.y);st.y+=8;}
-  st.y+=4;
+  for(let i=0;i<4;i++){if(S2.y>268){doc.addPage();S2.y=20;}doc.setDrawColor(215,205,185);doc.line(16,S2.y,194,S2.y);S2.y+=8;}
+  S2.y+=4;
   L("Coté et paraphé le .............................. par ..............................",{size:9,gap:10});
   L("Le directeur :",{size:9,gap:6});
-  pdfPied(doc,"Registre L. 331-2 CASF — document confidentiel");
+  pdfPied(doc,"Registre L. 331-2 CASF — document confidentiel","Tiré le "+horoFR());
   doc.save("registre_personnes_accueillies_"+isoToday()+".pdf");
 }
 async function demandesPDF(liste,etab,titre){
@@ -245,7 +295,7 @@ async function demandesPDF(liste,etab,titre){
     if(d.decisionPar)L(stt+" par "+d.decisionPar+" le "+fmt(d.decisionLe)+(d.decisionNote?" — "+d.decisionNote:""),{size:9,gap:5,color:[90,90,90]});
     st.y+=2;if(st.y>272){doc.addPage();st.y=16;}doc.setDrawColor(230,225,215);doc.line(16,st.y,194,st.y);st.y+=5;
   });
-  pdfPied(doc,"Document confidentiel — dossier du personnel");
+  pdfPied(doc,"Document confidentiel — dossier du personnel","Tiré le "+horoFR());
   doc.save("demandes_personnel_"+isoToday()+".pdf");
 }
 const ENT_ECHELLE=["Insuffisant","À développer","Maîtrisé","Expert"];
@@ -597,12 +647,12 @@ function JeunesList({user,jeunes,presences,onSelect,onNav,onUpdateJeune}){
   </div>);
 }
 
-function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onCP,onUpdateJeune,users}){
+function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onCP,onUpdateJeune,users,projets,onUpdateProjets,etabConfig}){
   const[tab,setTab]=useState("fiche");const[saved,setSaved]=useState(false);
   const jr=(rapports||[]).filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const jp=presences.filter(p=>p.jeuneId===jeune.id&&WEEKDATES.includes(p.date));
   const je=(evenements||[]).filter(e=>e.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const tabs=["fiche","rapports","stages","incidents"];
+  const tabs=["fiche","rapports","projet","stages","incidents"];
   return(<div style={{padding:"14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card,background:C.sable,border:"none",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
@@ -626,7 +676,8 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:12,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}{r.author&&<span style={{fontWeight:400,fontSize:12,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:12,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap"}}>{sc2.icon}</button></div>);})}
     </div></div>}
-    {tab==="stages"&&<StagesPanel sujet={jeune} user={user} users={users} onUpdate={onUpdateJeune}/>}
+    {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[jeune]} majeurs={[]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={jeune.id}/>}
+      {tab==="stages"&&<StagesPanel sujet={jeune} user={user} users={users} onUpdate={onUpdateJeune} etabConfig={etabConfig}/>}
       {tab==="incidents"&&<div>{je.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:je.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,borderLeft:`4px solid ${gc.dot}`,animation:"cardEnter 0.3s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5,flexWrap:"wrap"}}><div style={{fontWeight:800,color:C.dark}}>{e.titre}</div><span style={{...{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}}>{e.gravite}</span></div><p style={{margin:0,fontSize:12,color:C.mid}}>{e.description}</p><div style={{fontSize:11.5,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" - par "+e.author}</div></div>);})}
     <button style={{...S.btnO,marginTop:8}} onClick={()=>onAddE(jeune)}><Plus size={15}/>Déclarer événement</button></div>}
   </div>);
@@ -947,11 +998,11 @@ const generateDocx=async(jeune)=>{console.log("generateDocx called for",jeune.pr
   </div>);
 }
 
-function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,users}){
+function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,users,fixedId}){
   const allPool=[...(jeunes||JEUNES),...(majeurs||MAJEURS)];
   const vj=(user.role==="educateur"||user.role==="coordinateur_site")?allPool.filter(j=>(user.site==="Tous"||j.site===user.site)&&(user.isEducMajeur?j.id>=100:j.id<100)):allPool;
   const[siteF,setSiteF]=useState("Tous");
-  const[selId,setSelId]=useState("");
+  const[selId,setSelId]=useState(fixedId!=null?String(fixedId):"");
   const[oDom,setODom]=useState("");const[oTitre,setOTitre]=useState("");const[oMoyens,setOMoyens]=useState("");const[oRef,setORef]=useState("");const[oInd,setOInd]=useState("");const[oEch,setOEch]=useState("");const[showObj,setShowObj]=useState(false);
   const[obsTxt,setObsTxt]=useState("");const[obsDom,setObsDom]=useState("");
   const[revType,setRevType]=useState("Révision mi-séjour");const[revNote,setRevNote]=useState("");const[showRev,setShowRev]=useState(false);
@@ -978,12 +1029,12 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
   const OBJ_ST={"En cours":{bg:"#E3F2FD",c:"#1565C0"},"Atteint":{bg:"#E8F5E9",c:"#2E7D32"},"Partiellement atteint":{bg:"#FFF8E1",c:"#B8860B"},"Abandonné":{bg:"#FFEBEE",c:"#C62828"}};
   const ech=sel?projEcheances(sel,projet,etabConfig):[];
   const partTracee=!!(part.dateEntretien&&((part.avisJeune||"").trim()||part.refus));
-  return(<div style={{padding:"18px 14px",maxWidth:760,margin:"0 auto"}}>
-    {user.role!=="educateur"&&<div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>{["Tous","Fatick","Djilass"].map(s=><button key={s} onClick={()=>{setSiteF(s);setSelId("");}} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${siteF===s?C.gold:C.border}`,background:siteF===s?C.gold:C.white,color:siteF===s?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>}
-    <div style={{...S.card,marginBottom:14}}>
+  return(<div style={{padding:fixedId?"0":"18px 14px",maxWidth:760,margin:"0 auto"}}>
+    {!fixedId&&user.role!=="educateur"&&<div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>{["Tous","Fatick","Djilass"].map(s=><button key={s} onClick={()=>{setSiteF(s);setSelId("");}} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${siteF===s?C.gold:C.border}`,background:siteF===s?C.gold:C.white,color:siteF===s?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>}
+    {!fixedId&&<div style={{...S.card,marginBottom:14}}>
       <label style={{...S.lbl}}>Bénéficiaire</label>
       <select style={{...S.inp}} value={selId} onChange={e=>setSelId(e.target.value)}><option value="">-- Sélectionner --</option>{vis.map(j=>{const p=(projets||[]).find(x=>String(x.jeuneId)===String(j.id));const late=p?projEcheances(j,p,etabConfig).some(x=>!x.fait&&x.due&&x.due<isoToday()):false;return<option key={j.id} value={j.id}>{j.prenom} {j.nom} — {j.site}{!p?" (aucun projet)":(late?" ⚠ échéance dépassée":" ✓")}</option>;})}</select>
-    </div>
+    </div>}
     {sel&&<div style={{...S.card,borderLeft:"4px solid "+C.gold}}>
       <div style={{marginBottom:10}}>
         <div style={{fontWeight:900,fontSize:16,color:C.dark}}>Projet personnalisé — {sel.prenom} {sel.nom}</div>
@@ -996,8 +1047,9 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
           <div style={{flex:1,minWidth:150,fontSize:11.5,fontWeight:800,color:projet.statut==="valide"?"#2E7D32":"#B8860B"}}>{projet.statut==="valide"?("Validé le "+fmt(projet.valideLe)+" par "+(projet.validePar||"?")):"Version de travail — non validée"}{verrou?" · lecture seule":""}</div>
           {estDir&&projet.statut!=="valide"&&<button onClick={valider} style={{...S.btnP,fontSize:11.5,padding:"6px 13px"}}><Check size={13}/>Valider</button>}
           {estDir&&projet.statut==="valide"&&<button onClick={rouvrir} style={{...S.btnO,fontSize:11.5,padding:"6px 13px"}}>Rouvrir</button>}
-          <button onClick={async()=>{try{await projetPDF(projet,sel,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,fontSize:11.5,padding:"6px 13px"}}><Download size={13}/>PDF</button>
+          <button onClick={async()=>{const nEd=((projet.editions||[]).length)+1;try{await projetPDF(projet,sel,etabConfig,user,nEd);upd({editions:[...((projet.editions)||[]),{n:nEd,date:isoToday(),par:user?.name||"?",statut:projet.statut||"brouillon"}]});}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,fontSize:11.5,padding:"6px 13px"}}><Download size={13}/>PDF</button>
         </div>
+        {(projet.editions||[]).length>0&&<div style={{fontSize:11.5,color:C.light,marginBottom:10}}>Éditions PDF : {(projet.editions||[]).slice(-4).map(e=>"n° "+e.n+" le "+fmt(e.date)+" ("+(e.statut==="valide"?"validé":"travail")+")").join("  ·  ")}</div>}
         {(projet.reouvertures||[]).length>0&&<div style={{fontSize:11.5,color:C.light,marginBottom:10}}>{(projet.reouvertures||[]).map((r,i)=><div key={i}>Rouvert le {fmt(r.date)} par {r.par}{r.motif?" — "+r.motif:""}</div>)}</div>}
         {!verrou&&<div style={{...S.card,background:C.sableLight,marginBottom:14}}>
           <div style={{fontWeight:800,fontSize:13,color:C.dark,marginBottom:2}}>Observation express</div>
@@ -1860,7 +1912,7 @@ function AgendaPage({agenda,setAgenda,jeunes,majeurs,users,user}){
  </div>);
 }
 
-function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP,users,addR,addE,onUpdateMajeur}){
+function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,onAddE,onCP,users,addR,addE,onUpdateMajeur,projets,onUpdateProjets,etabConfig}){
  const[tab,setTab]=useState("fiche");
  const[showFormR,setShowFormR]=useState(false);
  const[showFormE,setShowFormE]=useState(false);
@@ -1876,7 +1928,7 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  const mr=(rapports||[]).filter(r=>r.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
  const me=(evenements||[]).filter(e=>e.jeuneId===majeur.id).sort((a,b)=>b.date.localeCompare(a.date));
  const mp=Object.entries(presences||{}).filter(([k])=>k.startsWith("2")).reduce((acc,[date,v])=>{if(v[majeur.id])acc[date]=v[majeur.id];return acc;},{});
- const tabs=["fiche","rapports","stages","incidents","presences"];
+ const tabs=["fiche","rapports","projet","stages","incidents","presences"];
  const TC_LABELS={journee:"Journée du jeune",rdv_parents:"RDV tél. parents",rdv_exterieur:"RDV tél. contact ext."};
  const submitR=()=>{if(!rObs.trim())return alert("Observation requise");addR&&addR({jeuneId:majeur.id,date:rDate,observation:rObs.trim(),typeContact:rTC});setRObs("");setRTC("journee");setShowFormR(false);};
  const submitE=()=>{if(!eTitre.trim())return alert("Titre requis");addE&&addE({jeuneId:majeur.id,date:eDate,titre:eTitre.trim(),description:eDesc.trim(),gravite:eGrav,type:eType,categorie:"jeune",site:majeur.site||null,eig:eEig,eigData:eEig?{destinataires:"",dateTransmission:"",accuseReception:false,statutCloture:"En cours"}:null});setETitre("");setEDesc("");setEEig(false);setShowFormE(false);};
@@ -1891,7 +1943,8 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto",paddingBottom:4,flexWrap:"wrap"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t==="presences"?"Présences":t}</button>)}</div>
  {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",majeur.prenom],["Nom",majeur.nom||"-"],["Site",majeur.site],["Statut",majeur.statut],["Début",majeur.dateDebut||"-"],["Fin",majeur.dateFin||"-"],["Email ASE",majeur.emailASE||"-"],["Tel parent",majeur.telParent1||"-"],["Tel jeune",majeur.telJeune||"-"],["Référent A",majeur.referentA||"-"],["Référent B",majeur.referentB||"-"]].map(([k,v])=><div key={k}><div style={{fontSize:11.5,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
  {tab==="rapports"&&<div>{showFormR?<div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Nouveau rapport</div><label style={{...S.lbl}}>Date</label><input type="date" value={rDate} onChange={e=>setRDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Type de contact</label><select value={rTC} onChange={e=>setRTC(e.target.value)} style={{...S.inp,marginBottom:8}}><option value="journee">Journée du jeune</option><option value="rdv_parents">RDV tél. parents</option><option value="rdv_exterieur">RDV tél. contact ext.</option></select><label style={{...S.lbl}}>Observation</label><textarea value={rObs} onChange={e=>setRObs(e.target.value)} placeholder="Observation..." rows={4} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><button onClick={submitR} style={{...S.btnP,background:"#2E7D32",borderColor:"#2E7D32"}}>Enregistrer</button><button onClick={()=>setShowFormR(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{mr.length===0&&!showFormR?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:mr.map(r=><div key={r.id} style={{...S.card,marginBottom:8}}><div style={{fontSize:12,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)} · {TC_LABELS[r.typeContact]||"Journalier"}{r.author&&<span style={{fontWeight:400,fontSize:12,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}{!showFormR&&<button onClick={()=>setShowFormR(true)} style={{...S.btnP,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Nouveau rapport</button>}</div>}
- {tab==="stages"&&<StagesPanel sujet={majeur} user={user} users={users} onUpdate={onUpdateMajeur}/>}
+ {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[]} majeurs={[majeur]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={majeur.id}/>}
+      {tab==="stages"&&<StagesPanel sujet={majeur} user={user} users={users} onUpdate={onUpdateMajeur} etabConfig={etabConfig}/>}
       {tab==="incidents"&&<div>{showFormE?<div style={{...S.card,borderLeft:`4px solid ${C.orange}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Déclarer un événement</div><label style={{...S.lbl}}>Date</label><input type="date" value={eDate} onChange={e=>setEDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}><div><label style={{...S.lbl}}>Type</label><select value={eType} onChange={e=>setEType(e.target.value)} style={{...S.inp}}><option value="incident">Incident</option><option value="plainte">Plainte</option><option value="reclamation">Réclamation</option></select></div><div><label style={{...S.lbl}}>Gravité</label><select value={eGrav} onChange={e=>setEGrav(e.target.value)} style={{...S.inp}}><option>Léger</option><option>Moyen</option><option>Grave</option></select></div></div><label style={{...S.lbl}}>Qualification</label><select value={eEig?"oui":"non"} onChange={e=>setEEig(e.target.value==="oui")} style={{...S.inp,marginBottom:8}}><option value="non">Événement indésirable simple</option><option value="oui">EIG — signalement obligatoire (art. L331-8-1 CASF)</option></select><label style={{...S.lbl}}>Titre</label><input value={eTitre} onChange={e=>setETitre(e.target.value)} placeholder="Titre" style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Description</label><textarea value={eDesc} onChange={e=>setEDesc(e.target.value)} placeholder="Description..." rows={3} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><button onClick={submitE} style={{...S.btnP}}>Enregistrer</button><button onClick={()=>setShowFormE(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{me.length===0&&!showFormE?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:me.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,marginBottom:8,borderLeft:`4px solid ${gc.dot}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap"}}><span style={{fontWeight:800,color:C.dark}}>{e.titre}</span><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{e.eig&&<span style={{background:"#C62828",color:"#fff",borderRadius:4,padding:"2px 8px",fontSize:11.5,fontWeight:800}}>EIG</span>}<span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{GC[e.gravite]?e.gravite:"Léger"}</span></div></div><div style={{fontSize:12,color:C.mid,marginTop:4}}>{e.description}</div><div style={{fontSize:11.5,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" — par "+e.author}</div></div>);})}{!showFormE&&<button onClick={()=>setShowFormE(true)} style={{...S.btnO,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Déclarer un événement</button>}</div>}
  {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune présence enregistrée</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Après-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"✅":"❌"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"✅":"❌"}</td></tr>)}</tbody></table></div>}</div>}
  </div>);
@@ -1947,6 +2000,7 @@ const[chkRapportsH,setChkRapportsH]=useState(true);
 const[chkRapportsSite,setChkRapportsSite]=useState(true);
 const[chkRdv,setChkRdv]=useState(true);
 const[chkEvenements,setChkEvenements]=useState(true);
+const[chkStages,setChkStages]=useState(true);
 const[filterJournee,setFilterJournee]=useState(true);
 const[filterTelParents,setFilterTelParents]=useState(true);
 const[filterTelExt,setFilterTelExt]=useState(true);
@@ -1962,7 +2016,7 @@ const fR=(rapports||[]).filter(r=>r.date>=dateFrom&&r.date<=dateTo);
 const fRFiltered=fR.filter(r=>{const tc=r.typeContact||"journee";if(tc==="journee"&&!filterJournee)return false;if(tc==="tel_parents"&&!filterTelParents)return false;if(tc==="tel_ext"&&!filterTelExt)return false;return true;});
 const doExport=async()=>{
 if(!dateFrom||!dateTo)return alert("Sélectionnez une période");
-if(!chkRapportsJ&&!chkRapportsH&&!chkRapportsSite&&!chkRdv&&!chkEvenements)return alert("Sélectionnez au moins un type de données");
+if(!chkRapportsJ&&!chkRapportsH&&!chkRapportsSite&&!chkRdv&&!chkEvenements&&!chkStages)return alert("Sélectionnez au moins un type de données");
 setExporting(true);
 try{
 const XLSX=await loadXLSX();
@@ -2014,6 +2068,28 @@ if(chkEvenements){
   ws["!autofilter"]={ref:"A1:M"+rowsE.length};
   XLSX.utils.book_append_sheet(wb,ws,"Événements indésirables");
 }
+if(chkStages){
+  const rowsS=[["Jeune","Site","Intitulé","Structure d'accueil","Lieu","Tuteur","Tél. tuteur","Référent éducatif","Début","Fin","H/sem.","Statut","Nb appréciations","Dernière appréciation","Assiduité","Comportement","Gestes pro.","Autonomie","Intégration","Commentaire du tuteur","Bilan de fin de stage"]];
+  [...(jeunes||[]),...(majeurs||[])].forEach(pj=>((pj.stages)||[]).forEach(st=>{
+    const apps=(st.appreciations)||[];const last=apps.length?apps[apps.length-1]:null;const n=(last&&last.notes)||{};
+    rowsS.push([(pj.prenom||"")+" "+(pj.nom||""),pj.site||"",st.intitule||"",st.structure||"",st.lieu||"",st.tuteur||"",st.telTuteur||"",st.referent||"",normDate(st.dateDebut),normDate(st.dateFin),st.heures||"",st.statut||"",apps.length,last?last.date:"",n.assiduite||"",n.comportement||"",n.technique||"",n.autonomie||"",n.integration||"",last?(last.texte||""):"",st.bilan||""]);}));
+  const ws=XLSX.utils.aoa_to_sheet(rowsS);
+  ws["!cols"]=[{wch:24},{wch:10},{wch:24},{wch:26},{wch:20},{wch:18},{wch:14},{wch:18},{wch:12},{wch:12},{wch:8},{wch:12},{wch:8},{wch:12},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16},{wch:50},{wch:60}];
+  ws["!autofilter"]={ref:"A1:U"+rowsS.length};
+  ws["!freeze"]={xSplit:1,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws,"Stages");
+}
+{
+  const nomsFeuilles=wb.SheetNames.slice();
+  const syn=[["EXPORT PDSR"],[],["Période",fmt(dateFrom)+" au "+fmt(dateTo)],["Édité le",fmt(isoToday())],["Sites","Fatick et Djilass"],[],["Feuille","Lignes de données"]];
+  nomsFeuilles.forEach(n=>{const f=wb.Sheets[n];const r=XLSX.utils.decode_range(f["!ref"]||"A1:A1");syn.push([n,Math.max(0,r.e.r)]);});
+  syn.push([]);syn.push(["Chaque feuille a un filtre sur la ligne d'en-tête et la première ligne figée."]);
+  const wsSyn=XLSX.utils.aoa_to_sheet(syn);
+  wsSyn["!cols"]=[{wch:30},{wch:34}];
+  XLSX.utils.book_append_sheet(wb,wsSyn,"Sommaire");
+  wb.SheetNames=["Sommaire",...nomsFeuilles];
+  nomsFeuilles.forEach(n=>{const f=wb.Sheets[n];if(!f["!freeze"])f["!freeze"]={xSplit:0,ySplit:1};});
+}
 XLSX.writeFile(wb,"PDSR_Export_"+dateFrom+"_"+dateTo+".xlsx");
 setDone(true);
 }catch(err){alert("Erreur export: "+err.message);}
@@ -2061,6 +2137,7 @@ return(<div style={{maxWidth:600,margin:"0 auto"}}>
   <Chk checked={chkRapportsSite} onChange={()=>setChkRapportsSite(!chkRapportsSite)} label="Rapports de site" count={dateFrom&&dateTo?(rapportsSite||[]).filter(r=>r.date>=dateFrom&&r.date<=dateTo).length:undefined}/>
   <Chk checked={chkRdv} onChange={()=>setChkRdv(!chkRdv)} label="Rendez-vous" count={dateFrom&&dateTo?(agenda||[]).filter(a=>a.date>=dateFrom&&a.date<=dateTo).length:undefined}/>
   <Chk checked={chkEvenements} onChange={()=>setChkEvenements(!chkEvenements)} label="Événements indésirables" count={dateFrom&&dateTo?(evenements||[]).filter(e=>e.date>=dateFrom&&e.date<=dateTo).length:undefined}/>
+  <Chk checked={chkStages} onChange={()=>setChkStages(!chkStages)} label="Stages et bilans" count={[...(jeunes||[]),...(majeurs||[])].reduce((n,p2)=>n+((p2.stages)||[]).length,0)}/>
 </div>
 </div>
 <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
@@ -2706,8 +2783,8 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="dashboard"&&<Dashboard projets={projets} etabConfig={etabConfig} setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,flexWrap:"wrap"}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:12,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
-        {page==="majeur-detail"&&sel&&<MajeurDetail majeur={(appMajeurs||[]).find(m=>m.id===sel.id)||sel} onUpdateMajeur={(id,field,val)=>setAppMajeurs(prev=>(prev||[]).map(m=>m.id===id?{...m,[field]:val}:m))} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
-        {page==="jeune-detail"&&sel&&<JeuneDetail jeune={appJeunes.find(j=>j.id===sel.id)||sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
+        {page==="majeur-detail"&&sel&&<MajeurDetail projets={projets} onUpdateProjets={setProjets} etabConfig={etabConfig} majeur={(appMajeurs||[]).find(m=>m.id===sel.id)||sel} onUpdateMajeur={(id,field,val)=>setAppMajeurs(prev=>(prev||[]).map(m=>m.id===id?{...m,[field]:val}:m))} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
+        {page==="jeune-detail"&&sel&&<JeuneDetail projets={projets} onUpdateProjets={setProjets} etabConfig={etabConfig} jeune={appJeunes.find(j=>j.id===sel.id)||sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="rapports"&&<Rapports user={effUser} rapports={rapports} jeunes={appJeunes} onSave={addR} onDelete={delR} onUpdate={(id,field,val)=>setRapports(p=>p.map(r=>r.id===id?{...r,[field]:val}:r))} onPatch={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} majeurs={appMajeurs}/>}
         
         {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} jeunes={appJeunes} onUpdateAll={setEvenements}/>}
