@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-i";
+const APP_BUILD="2026-09-01-k";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -458,11 +458,41 @@ function Topbar({title,onMenu,onBack,unread,onBell,onRefresh,refreshing,lastSync
   </header>);
 }
 
-function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs,intendance,suiviEduc,users}){
+function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeunes,agenda,majeurs,intendance,suiviEduc,users,projets,etabConfig}){
   const isMajEduc=user.role==="educateur"&&user.isEducMajeur;
   const pool=isMajEduc?(majeurs||MAJEURS):(jeunes||JEUNES);
   const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
   const todayP=presences.filter(p=>p.date===today);
+  const encadre=user.role==="chef_service"||user.role==="directeur";
+  const pool7=[...(jeunes||[]),...(majeurs||[])];
+  const dans7=(d)=>{if(!d)return false;const j=(new Date(d+"T12:00:00")-new Date(today+"T12:00:00"))/86400000;return j>=0&&j<=7;};
+  const alertes=(()=>{const a=[];
+    const retards=[];
+    pool7.forEach(pj=>{const pr=(projets||[]).find(x=>String(x.jeuneId)===String(pj.id));projEcheances(pj,pr,etabConfig).forEach(e=>{if(!e.fait&&e.due&&e.due<today)retards.push({q:pj,l:e.l,due:e.due});});});
+    if(retards.length)a.push({ic:"alerte",ton:"danger",t:retards.length+(retards.length>1?" échéances dépassées":" échéance dépassée"),s:retards.slice(0,3).map(r=>(r.q.prenom||"")+" — "+r.l).join(" · "),nav:"projets"});
+    const sansDate=pool7.filter(pj=>!normDate(pj.dateDebut));
+    if(sansDate.length)a.push({ic:"alerte",ton:"danger",t:sansDate.length+(sansDate.length>1?" fiches sans date d'entrée":" fiche sans date d'entrée"),s:"Aucune échéance ne peut être calculée · "+sansDate.slice(0,3).map(x=>x.prenom||"?").join(", "),nav:"jeunes"});
+    const sansProjet=pool7.filter(pj=>!(projets||[]).some(x=>String(x.jeuneId)===String(pj.id)));
+    if(sansProjet.length)a.push({ic:"cible",ton:"warning",t:sansProjet.length+(sansProjet.length>1?" jeunes sans projet personnalisé":" jeune sans projet personnalisé"),s:sansProjet.slice(0,3).map(x=>x.prenom||"?").join(", "),nav:"projets"});
+    const vides=(projets||[]).filter(pr=>((pr.objectifs||[]).length===0));
+    if(vides.length)a.push({ic:"cible",ton:"warning",t:vides.length+(vides.length>1?" projets sans objectif":" projet sans objectif"),s:"À compléter avec le jeune",nav:"projets"});
+    if(encadre){const av=(projets||[]).filter(pr=>pr.statut!=="valide"&&((pr.objectifs||[]).length>0));
+      if(av.length)a.push({ic:"valider",ton:"warning",t:av.length+(av.length>1?" projets à valider":" projet à valider"),s:"En attente de la direction",nav:"projets"});}
+    const rj=(agenda||[]).filter(r=>r&&r.date===today);
+    if(rj.length)a.push({ic:"rdv",ton:"accent",t:rj.length+(rj.length>1?" rendez-vous aujourd'hui":" rendez-vous aujourd'hui"),s:rj.slice(0,2).map(r=>(r.heure||"")+" "+(r.description||r.type||"")).join(" · "),nav:"agenda"});
+    const fins=[],debuts=[],aSuivre=[];
+    pool7.forEach(pj=>((pj.stages)||[]).forEach(st=>{const q=(pj.prenom||"")+" — "+(st.structure||st.intitule||"stage");
+      if(st.statut==="En cours"&&dans7(normDate(st.dateFin)))fins.push(q);
+      else if(st.statut==="Prévu"&&dans7(normDate(st.dateDebut)))debuts.push(q);
+      else if(st.statut==="En cours"&&!((st.appreciations)||[]).length)aSuivre.push(q);}));
+    if(fins.length)a.push({ic:"stage",ton:"warning",t:fins.length+(fins.length>1?" stages se terminent":" stage se termine")+" sous 7 jours",s:fins.slice(0,2).join(" · ")+" — bilan à rédiger",nav:"jeunes"});
+    if(debuts.length)a.push({ic:"stage",ton:"accent",t:debuts.length+(debuts.length>1?" stages démarrent":" stage démarre")+" sous 7 jours",s:debuts.slice(0,2).join(" · "),nav:"jeunes"});
+    if(aSuivre.length)a.push({ic:"stage",ton:"accent",t:aSuivre.length+(aSuivre.length>1?" stages sans appréciation":" stage sans appréciation"),s:aSuivre.slice(0,2).join(" · "),nav:"jeunes"});
+    if(encadre){const dem=(users||[]).reduce((n,u)=>n+((u.demandes)||[]).filter(d=>d.statut==="en_attente").length,0);
+      if(dem)a.push({ic:"demande",ton:"warning",t:dem+(dem>1?" demandes du personnel":" demande du personnel"),s:"En attente de décision",nav:"espace-rh"});}
+    return a;})();
+  const TON={danger:{c:"#C62828",bg:"#FFEBEE"},warning:{c:"#B8860B",bg:"#FFF8E1"},accent:{c:"#1565C0",bg:"#E3F2FD"}};
+  const ICO={alerte:AlertTriangle,valider:Check,rdv:Clock,stage:Briefcase,demande:FileText,cible:Target};
   const rdvVis=(agenda||[]).filter(r=>r&&r.date).slice().sort((a,b)=>String(a.date+(a.heure||"")).localeCompare(String(b.date+(b.heure||""))));
   const rdvJour=rdvVis.filter(r=>r.date===today).length;
   const prochainRdv=rdvVis.find(r=>r.date>=today)||null;
@@ -473,6 +503,19 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
   return(<div style={{padding:"20px 16px",maxWidth:800,margin:"0 auto",animation:"fadeIn 0.4s ease"}}>
     <p style={{color:C.light,fontSize:12,margin:"0 0 4px",letterSpacing:"0.02em"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
     <h1 style={{fontSize:24,fontWeight:900,color:C.dark,margin:"0 0 22px",letterSpacing:"-0.01em"}}>Bonjour, {user.name.split(" ")[0]} 👋</h1>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontSize:12,fontWeight:800,color:C.light,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:alertes.length?10:0}}>À traiter aujourd'hui</div>
+        {alertes.length===0&&<div style={{display:"flex",gap:8,alignItems:"center",fontSize:13,color:C.mid,flexWrap:"wrap"}}><Check size={16} color="#2E7D32"/>Rien en attente. Tout est à jour.</div>}
+        {alertes.map((a,i)=>{const t=TON[a.ton]||TON.accent;const Ic=ICO[a.ic]||AlertTriangle;return(
+          <div key={i} onClick={()=>onNav(a.nav)} style={{display:"flex",gap:11,alignItems:"flex-start",padding:"11px 0",borderTop:i?"1px solid "+C.border:"none",cursor:"pointer",flexWrap:"wrap"}}>
+            <div style={{width:32,height:32,borderRadius:9,background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={17} color={t.c}/></div>
+            <div style={{flex:1,minWidth:120}}>
+              <div style={{fontSize:14,fontWeight:700,color:C.dark}}>{a.t}</div>
+              {a.s&&<div style={{fontSize:12,color:C.mid,marginTop:1}}>{a.s}</div>}
+            </div>
+            <ChevronRight size={16} color={C.light} style={{marginTop:8,flexShrink:0}}/>
+          </div>);})}
+      </div>
     {(user.id===2||user.id===3)&&(()=>{
       const its=(intendance||[]).filter(Boolean);
       const bAtt=its.filter(i=>i.type==="besoin"&&i.statut==="en_attente");
@@ -2660,7 +2703,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
       <main ref={mainRef} onTouchStart={e=>{const el=mainRef.current;if(el&&el.scrollTop<=0)ptrStart.current=e.touches[0].clientY;else ptrStart.current=null;}} onTouchMove={e=>{if(ptrStart.current==null)return;const d=e.touches[0].clientY-ptrStart.current;if(d>0)setPtr(Math.min(d*0.5,90));}} onTouchEnd={()=>{if(ptr>=60)refreshAll();setPtr(0);ptrStart.current=null;}} style={{flex:1,overflowY:"auto",overflowX:"hidden",position:"relative",width:"100%",maxWidth:"100vw",boxSizing:"border-box"}}>
         {ptr>0&&<div style={{height:ptr,display:"flex",alignItems:"center",justifyContent:"center",color:C.gold,transition:"height 0.15s",flexWrap:"wrap"}}><RefreshCw size={20} style={{transform:"rotate("+(ptr*4)+"deg)"}}/><span style={{marginLeft:8,fontSize:12,fontWeight:700}}>{ptr>=60?"Relâchez pour actualiser":"Tirez pour actualiser"}</span></div>}
         <GlobalFX/><div key={page} className="pg-anim" style={{maxWidth:"100%",overflowX:"hidden"}}>
-        {page==="dashboard"&&<Dashboard setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
+        {page==="dashboard"&&<Dashboard projets={projets} etabConfig={etabConfig} setPage={setPage} user={effUser} rapports={rapports} presences={presences} evenements={evenements} onNav={setPage} setSel={setSel} jeunes={appJeunes} agenda={agenda} majeurs={appMajeurs} intendance={intendance} suiviEduc={suiviEduc} users={appUsers}/>}
         {page==="jeunes"&&<JeunesList user={effUser} jeunes={appJeunes} presences={presences} onSelect={setSel} onNav={setPage} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="majeurs"&&<div><div style={{...S.card,marginBottom:12}}><div style={{fontWeight:700,fontSize:16,color:C.dark,marginBottom:12}}>Jeunes Majeurs</div><div style={{fontSize:12,color:C.light,marginBottom:8}}>Section des jeunes majeurs</div></div>{(appMajeurs||MAJEURS).map(m=><div key={m.id} onClick={()=>{setSel(m);setPage("majeur-detail");}} style={{...S.card,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{width:36,height:36,borderRadius:18,background:C.primary,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,flexWrap:"wrap"}}>{m.prenom[0]}{(m.nom||"")[0]||""}</div><div><div style={{fontWeight:700,color:C.dark,fontSize:14}}>{m.prenom} {m.nom}</div><div style={{fontSize:12,color:C.light}}>{m.site} | {m.dateDebut} - {m.dateFin}</div></div></div>)}</div>}
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={(appMajeurs||[]).find(m=>m.id===sel.id)||sel} onUpdateMajeur={(id,field,val)=>setAppMajeurs(prev=>(prev||[]).map(m=>m.id===id?{...m,[field]:val}:m))} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
