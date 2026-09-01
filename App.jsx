@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-h";
+const APP_BUILD="2026-09-01-i";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -387,7 +387,6 @@ const NAV=[
 {id:"majeurs",label:"Majeurs",icon:GraduationCap,g:"Suivi"},
 {id:"recherche",label:"Recherche",icon:Search,g:"Suivi"},
 {id:"rapports",label:"Rapports journaliers",icon:FileText,g:"Quotidien"},
-{id:"presences",label:"Présences",icon:Calendar,g:"Quotidien"},
 {id:"evenements",label:"Événements",icon:AlertTriangle,g:"Quotidien"},
 {id:"transmissions",label:"Transmissions",icon:Send,g:"Quotidien"},
 {id:"projets",label:"Projets personnalisés",icon:Target,g:"Accompagnement"},
@@ -437,7 +436,7 @@ function Sidebar({page,onNav,user,onLogout,open,onClose}){
         </div>
       </div>
       <nav style={{flex:1,padding:"10px 10px"}}>
-        {(()=>{const vis=NAV.filter(n=>{if(n.id==="admin"&&user.role!=="directeur"&&user.role!=="chef_service")return false;if(n.id==="export"&&user.role!=="directeur"&&user.role!=="chef_service"&&user.role!=="coordinateur_site")return false;if(user.isEducMajeur&&(n.id==="jeunes"||n.id==="presences"||n.id==="planning"))return false;if(n.id==="rapport-hebdo"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(n.id==="rapport-site"&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if((n.id==="intendance"||n.id==="pres-educ")&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(user.role==="educateur"&&!user.isEducMajeur&&n.id==="majeurs")return false;return true;});
+        {(()=>{const vis=NAV.filter(n=>{if(n.id==="admin"&&user.role!=="directeur"&&user.role!=="chef_service")return false;if(n.id==="export"&&user.role!=="directeur"&&user.role!=="chef_service"&&user.role!=="coordinateur_site")return false;if(user.isEducMajeur&&(n.id==="jeunes"||n.id==="planning"))return false;if(n.id==="rapport-hebdo"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(n.id==="rapport-site"&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if((n.id==="intendance"||n.id==="pres-educ")&&user.role!=="coordinateur_site"&&user.role!=="chef_service"&&user.role!=="directeur")return false;if(user.role==="educateur"&&!user.isEducMajeur&&n.id==="majeurs")return false;return true;});
         return NAV_GROUPES.map(g=>{const items=vis.filter(n=>n.g===g);if(!items.length)return null;return(<div key={g} style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:800,letterSpacing:"0.10em",textTransform:"uppercase",color:"rgba(234,210,156,0.55)",padding:"0 14px 7px"}}>{g}</div>
           {items.map(item=>{const Icon=item.icon;const active=page===item.id||page.startsWith(item.id+"-");return(<button key={item.id} onClick={()=>{onNav(item.id);onClose();}} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 14px",minHeight:46,borderRadius:9,border:"none",borderLeft:active?"3px solid "+C.gold:"3px solid transparent",cursor:"pointer",fontFamily:"inherit",fontWeight:active?800:600,fontSize:14,marginBottom:2,background:active?"rgba(234,210,156,0.13)":"transparent",color:active?"#F6E7BE":"rgba(255,255,255,0.86)",textAlign:"left",transition:"background 0.15s ease"}}><Icon size={18} style={{flexShrink:0,opacity:active?1:0.75}}/><span style={{flex:1}}>{item.label}</span>{active&&<ChevronRight size={14}/>}</button>);})}
@@ -464,6 +463,9 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
   const pool=isMajEduc?(majeurs||MAJEURS):(jeunes||JEUNES);
   const vj=(user.role==="educateur"||user.role==="coordinateur_site")?pool.filter(j=>user.site==="Tous"||j.site===user.site):pool;
   const todayP=presences.filter(p=>p.date===today);
+  const rdvVis=(agenda||[]).filter(r=>r&&r.date).slice().sort((a,b)=>String(a.date+(a.heure||"")).localeCompare(String(b.date+(b.heure||""))));
+  const rdvJour=rdvVis.filter(r=>r.date===today).length;
+  const prochainRdv=rdvVis.find(r=>r.date>=today)||null;
   const myPresents=todayP.filter(p=>p.statut==="Présent"&&vj.some(j=>j.id===p.jeuneId)).length;
   const myRapports=(rapports||[]).filter(r=>r.date===today&&vj.some(j=>j.id===r.jeuneId)).length;
   const myGraves=(evenements||[]).filter(e=>e.gravite==="Grave"&&vj.some(j=>j.id===e.jeuneId)).length;
@@ -505,7 +507,7 @@ function Dashboard({user,rapports,presences,evenements,onNav,setSel,setPage,jeun
       </div>);
     })()}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-      {[{l:isMajEduc?"Majeurs suivis":"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:jeunesNav},{l:"Présents aujourd'hui",v:`${myPresents}/${vj.length}`,i:"✔️",c:"#2E7D32",bg:"#E8F5E9",nav:isMajEduc?null:"presences"},{l:"Rapports ce jour",v:myRapports,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:myGraves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
+      {[{l:isMajEduc?"Majeurs suivis":"Jeunes suivis",v:vj.length,i:"👥",c:C.gold,bg:C.goldLight,nav:jeunesNav},{l:rdvJour>0?"RDV aujourd'hui":"Prochain RDV",v:rdvJour>0?String(rdvJour):(prochainRdv?fmt(prochainRdv.date):"—"),i:"📅",c:"#1565C0",bg:"#E3F2FD",nav:"agenda"},{l:"Rapports ce jour",v:myRapports,i:"📝",c:C.orange,bg:C.orangeLight,nav:"rapports"},{l:"Incidents graves",v:myGraves,i:"⚠️",c:"#C62828",bg:"#FFEBEE",nav:"evenements"}].map((s,i)=>(
         <div key={i} onClick={()=>s.nav&&setPage(s.nav)} style={{...S.card,display:"flex",alignItems:"center",gap:14,padding:"16px",marginBottom:0,cursor:s.nav?"pointer":"default",borderLeft:"4px solid "+s.c,animation:"fadeIn 0.4s ease "+(i*0.08)+"s both",opacity:s.nav?1:0.7,flexWrap:"wrap"}}>
           <div style={{width:44,height:44,borderRadius:12,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,flexWrap:"wrap"}}>{s.i}</div>
           <div><div style={{fontSize:26,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div><div style={{fontSize:11.5,color:C.light,fontWeight:700,marginTop:3,letterSpacing:"0.03em",textTransform:"uppercase"}}>{s.l}</div></div>
@@ -557,7 +559,7 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
   const jr=(rapports||[]).filter(r=>r.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
   const jp=presences.filter(p=>p.jeuneId===jeune.id&&WEEKDATES.includes(p.date));
   const je=(evenements||[]).filter(e=>e.jeuneId===jeune.id).sort((a,b)=>b.date.localeCompare(a.date));
-  const tabs=["fiche","rapports","présences","stages","incidents"];
+  const tabs=["fiche","rapports","stages","incidents"];
   return(<div style={{padding:"14px",maxWidth:700,margin:"0 auto"}}>
     <div style={{...S.card,background:C.sable,border:"none",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
@@ -2664,7 +2666,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="majeur-detail"&&sel&&<MajeurDetail majeur={(appMajeurs||[]).find(m=>m.id===sel.id)||sel} onUpdateMajeur={(id,field,val)=>setAppMajeurs(prev=>(prev||[]).map(m=>m.id===id?{...m,[field]:val}:m))} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onBack={()=>setPage("majeurs")} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} addR={r=>{addR(r);}} addE={ev=>{addE(ev);}}/>}
         {page==="jeune-detail"&&sel&&<JeuneDetail jeune={appJeunes.find(j=>j.id===sel.id)||sel} rapports={rapports} presences={presences} evenements={evenements} user={effUser} onAddR={j=>{setSel(j);setPage("rapports");}} onAddE={j=>{setSel(j);setPage("evenements");}} onCP={changeP} users={appUsers} onUpdateJeune={(id,field,val)=>{setAppJeunes(prev=>prev.map(j=>j.id===id?{...j,[field]:val}:j));}}/>}
         {page==="rapports"&&<Rapports user={effUser} rapports={rapports} jeunes={appJeunes} onSave={addR} onDelete={delR} onUpdate={(id,field,val)=>setRapports(p=>p.map(r=>r.id===id?{...r,[field]:val}:r))} onPatch={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} majeurs={appMajeurs}/>}
-        {page==="presences"&&<Presences user={effUser} presences={presences} onCP={changeP} onDelP={delP} jeunes={appJeunes}/>}
+        
         {page==="evenements"&&<Evenements user={effUser} evenements={evenements} onAdd={addE} onDelete={delE} majeurs={appMajeurs} jeunes={appJeunes} onUpdateAll={setEvenements}/>}
         {page==="agenda"&&<AgendaPage agenda={agenda} setAgenda={setAgenda} jeunes={appJeunes} majeurs={MAJEURS} users={appUsers} user={effUser}/>}
         {page==="transmissions"&&<Transmissions user={effUser} items={transmissions} onAdd={({site,texte,type})=>{const ts=new Date().toISOString();setTransmissions(p=>[...(p||[]),{id:Date.now(),site,texte,type:type||"transmission",author:(effUser&&effUser.name)||"",date:ts,updatedAt:ts,luPar:[]}]);pushNotif("transmission","Nouvelle transmission",String(texte).slice(0,100),site);}} onMarkLu={(id)=>{const ts=new Date().toISOString();setTransmissions(p=>(p||[]).map(t=>t.id===id?{...t,luPar:[...(t.luPar||[]),{name:(effUser&&effUser.name)||"",date:ts}],updatedAt:ts}:t));}}/>}
