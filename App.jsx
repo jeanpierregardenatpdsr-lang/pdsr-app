@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-m";
+const APP_BUILD="2026-09-01-n";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -1192,13 +1192,13 @@ function Planning({djiPlan,fatPlan,site,user,onUpdate}){
       {day.n&&!isEdit&&<div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{day.n}</div>}
       {isEdit&&canEdit&&<div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.97)",borderRadius:8,padding:6,zIndex:10,display:"flex",flexDirection:"column",gap:3}}>
         <div style={{fontSize:12,fontWeight:700,color:C.dark}}>Jour {day.d}</div>
-        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:3}}>
           <button onClick={()=>toggleDay(day.key,"a")} style={{fontSize:12,padding:"2px 6px",borderRadius:4,border:day.a?"1px solid "+C.gold:"1px solid #ccc",background:day.a?"#fef3c7":"#fff",color:C.dark,cursor:"pointer",fontWeight:600}}>A{day.a?" ✓":""}</button>
           <button onClick={()=>toggleDay(day.key,"b")} style={{fontSize:12,padding:"2px 6px",borderRadius:4,border:day.b?"1px solid #2563eb":"1px solid #ccc",background:day.b?"#dbeafe":"#fff",color:C.dark,cursor:"pointer",fontWeight:600}}>B{day.b?" ✓":""}</button>
           <button onClick={()=>toggleVac(day.key)} style={{fontSize:12,padding:"2px 6px",borderRadius:4,border:day.v?"1px solid #E65100":"1px solid #ccc",background:day.v?"#FFF3E0":"#fff",color:C.dark,cursor:"pointer",fontWeight:600}}>Vac{day.v?" ✓":""}</button>
         </div>
         <input value={editNote} onChange={e=>setEditNote(e.target.value)} onClick={e=>e.stopPropagation()} placeholder="Note..." style={{fontSize:12,padding:"2px 4px",border:"1px solid #ccc",borderRadius:3,width:"100%"}}/>
-        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:3}}>
           <button onClick={()=>saveNote(day.key)} style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:C.gold,color:"#fff",border:"none",cursor:"pointer",fontWeight:600,flex:1}}>OK</button>
           <button onClick={()=>{const mon=getWeekMonday(day.key);setFullWeek(mon,true,false);}} style={{fontSize:11,padding:"2px 4px",borderRadius:3,background:"#fef3c7",color:C.dark,border:"1px solid "+C.gold,cursor:"pointer",fontWeight:600}} title="Sem. A">Sem A</button>
           <button onClick={()=>{const mon=getWeekMonday(day.key);setFullWeek(mon,false,true);}} style={{fontSize:11,padding:"2px 4px",borderRadius:3,background:"#dbeafe",color:C.dark,border:"1px solid #2563eb",cursor:"pointer",fontWeight:600}} title="Sem. B">Sem B</button>
@@ -1262,8 +1262,9 @@ function ArchivesSejours({currentUser}){
   </div>);
 }
 
-function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,onResetGlobal,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
-  const[tab,setTab]=useState("educs");const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);const[logTab,setLogTab]=useState("connexions");
+function Admin({djiPlan,fatPlan,onBulkPlan,users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,onResetGlobal,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
+  const[tab,setTab]=useState("educs");const[planSite,setPlanSite]=useState("Fatick");const[planD1,setPlanD1]=useState("");const[planD2,setPlanD2]=useState("");const[planMode,setPlanMode]=useState("rotation");const[planBascule,setPlanBascule]=useState("0");const[planDebut,setPlanDebut]=useState("a");const[planEcraser,setPlanEcraser]=useState(false);
+const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);const[logTab,setLogTab]=useState("connexions");
   const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");const[editRapDate,setEditRapDate]=useState("");const[editRapJeune,setEditRapJeune]=useState("");
   const[integrity,setIntegrity]=useState(null);const[viewAsId,setViewAsId]=useState("");
   const[statSite,setStatSite]=useState("Tous");const[fiche360Id,setFiche360Id]=useState("");const[clotureLabel,setClotureLabel]=useState("");
@@ -1304,7 +1305,7 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registre L.331-2"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registre L.331-2"},{k:"planning-cfg",l:"Planning"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:12,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1622,6 +1623,69 @@ function Admin({users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,ap
           </div>
           {!verrou&&entManquants(cur).length>0&&<div style={{fontSize:12,color:"#C62828",fontWeight:700,marginTop:8}}>{entManquants(cur).length} champ(s) obligatoire(s) restant(s).</div>}
         </div>}
+      </div>);})()}
+
+    {tab==="planning-cfg"&&(()=>{
+      const plan=planSite==="Djilass"?(djiPlan||{}):(fatPlan||{});
+      const JOURS=[["0","dimanche"],["1","lundi"],["2","mardi"],["3","mercredi"],["4","jeudi"],["5","vendredi"],["6","samedi"]];
+      const jours=()=>{const out=[];if(!planD1||!planD2)return out;let d=new Date(planD1+"T12:00:00");const fin=new Date(planD2+"T12:00:00");if(isNaN(d)||isNaN(fin)||d>fin)return out;
+        while(d<=fin){out.push({key:d.toISOString().slice(0,10),wd:d.getDay()});d=new Date(d.getTime()+86400000);}return out;};
+      const liste=jours();
+      const calcul=()=>{const res={};let eq=planDebut;let init=false;
+        liste.forEach((j,idx)=>{
+          if(planMode==="rotation"){ if(idx>0&&String(j.wd)===planBascule)eq=(eq==="a"?"b":"a"); if(!init)init=true;
+            res[j.key]={a:eq==="a",b:eq==="b"}; }
+          else if(planMode==="deux")res[j.key]={a:true,b:true};
+          else if(planMode==="a")res[j.key]={a:true,b:false};
+          else if(planMode==="b")res[j.key]={a:false,b:true};
+          else res[j.key]={a:false,b:false};
+        });return res;};
+      const proj=calcul();
+      const aEcrire=Object.keys(proj).filter(k=>{const ex=plan[k];if(!ex)return true;if(planEcraser)return true;return !(ex.n||ex.a||ex.b||ex.v);});
+      const proteges=Object.keys(proj).length-aEcrire.length;
+      const appliquer=()=>{
+        if(!aEcrire.length){alert("Aucun jour à écrire sur cette période.");return;}
+        if(!confirm("Appliquer le modèle sur "+aEcrire.length+" jour(s) du site "+planSite+" ?"+(proteges?"\n\n"+proteges+" jour(s) déjà renseignés seront conservés.":"")))return;
+        const maj={};aEcrire.forEach(k=>{maj[k]={...(plan[k]||{}),...proj[k]};});
+        onBulkPlan(planSite,maj);
+        alert(aEcrire.length+" jour(s) mis à jour.");
+      };
+      const apercu=liste.slice(0,14);
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Générer le planning</h3>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:12}}>Remplit les jours d'une période selon un modèle de rotation. Les jours déjà renseignés sont conservés, sauf si vous cochez l'écrasement.</div>
+          <label style={{...S.lbl}}>Site</label>
+          <div style={{display:"flex",gap:7,marginBottom:12,flexWrap:"wrap"}}>{["Fatick","Djilass"].map(x=><button key={x} onClick={()=>setPlanSite(x)} style={{padding:"7px 16px",borderRadius:20,border:"1.5px solid "+(planSite===x?C.gold:C.border),background:planSite===x?C.gold:C.white,color:planSite===x?C.white:C.mid,fontWeight:700,fontSize:12.5,cursor:"pointer",fontFamily:"inherit"}}>{x}</button>)}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <div><label style={{...S.lbl}}>Du</label><input type="date" style={{...S.inp}} value={planD1} onChange={e=>setPlanD1(e.target.value)}/></div>
+            <div><label style={{...S.lbl}}>Au</label><input type="date" style={{...S.inp}} value={planD2} onChange={e=>setPlanD2(e.target.value)}/></div>
+          </div>
+          <label style={{...S.lbl}}>Modèle</label>
+          <select style={{...S.inp,marginBottom:12}} value={planMode} onChange={e=>setPlanMode(e.target.value)}>
+            <option value="rotation">Rotation des équipes</option>
+            <option value="deux">Les deux équipes tous les jours</option>
+            <option value="a">Équipe A seule</option>
+            <option value="b">Équipe B seule</option>
+            <option value="vide">Aucune équipe (vider)</option>
+          </select>
+          {planMode==="rotation"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <div><label style={{...S.lbl}}>Bascule le</label><select style={{...S.inp}} value={planBascule} onChange={e=>setPlanBascule(e.target.value)}>{JOURS.map(j=><option key={j[0]} value={j[0]}>{j[1]}</option>)}</select></div>
+            <div><label style={{...S.lbl}}>Commence par</label><select style={{...S.inp}} value={planDebut} onChange={e=>setPlanDebut(e.target.value)}><option value="a">Équipe A</option><option value="b">Équipe B</option></select></div>
+          </div>}
+          <label style={{display:"flex",alignItems:"center",gap:9,fontSize:13,fontWeight:700,color:C.dark,cursor:"pointer",padding:"9px 11px",borderRadius:8,background:planEcraser?"#FFEBEE":"transparent",border:"1.5px solid "+(planEcraser?"#C62828":C.border)}}>
+            <input type="checkbox" checked={planEcraser} onChange={e=>setPlanEcraser(e.target.checked)} style={{accentColor:"#C62828",width:17,height:17}}/>Écraser les jours déjà renseignés</label>
+        </div>
+        {liste.length>0&&<div style={{...S.card,marginBottom:12}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:C.dark,marginBottom:8}}>Aperçu — {liste.length} jour(s), {aEcrire.length} à écrire{proteges?", "+proteges+" conservé(s)":""}</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{apercu.map(j=>{const q=proj[j.key];const lab=q.a&&q.b?"A+B":q.a?"A":q.b?"B":"—";const bg=q.a&&q.b?"#e0e7ff":q.a?"#fef3c7":q.b?"#dbeafe":C.sableLight;const gar=aEcrire.indexOf(j.key)<0;
+            return(<div key={j.key} style={{minWidth:56,padding:"6px 4px",borderRadius:7,background:gar?C.sableLight:bg,border:"1px solid "+(gar?"#ddd":"transparent"),textAlign:"center",opacity:gar?0.45:1}}>
+              <div style={{fontSize:11,color:C.light}}>{fmt(j.key).slice(0,5)}</div>
+              <div style={{fontSize:12.5,fontWeight:800,color:C.dark}}>{gar?"—":lab}</div>
+            </div>);})}</div>
+          {liste.length>14&&<div style={{fontSize:11,color:C.light,marginTop:6}}>Les 14 premiers jours sont affichés.</div>}
+        </div>}
+        <button onClick={appliquer} disabled={!liste.length} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Check size={15}/>Appliquer au planning</button>
       </div>);})()}
 
     {tab==="registre"&&(()=>{
@@ -2795,7 +2859,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="pres-educ"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<PresEduc user={effUser} users={appUsers} entries={suiviEduc} onSave={r=>{setSuiviEduc(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"suiviEduc",origId:id,date:new Date().toISOString()}]);setSuiviEduc(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{const isNew=!(rapportsSite||[]).some(x=>x.id===r.id);setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif("rapport_site","Rapport de site déposé",(r.site||"")+((r.semaine||r.periode)?" · "+(r.semaine||r.periode):""),r.site||"");}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now()+"_rapportSite_"+id,type:"rapportSite",origId:id,date:new Date().toISOString()}]);setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage peutPurger={!!effUser.isAdmin} purgeRanges={(purgeMarks&&purgeMarks.ranges)||[]} onCancelRange={(ts)=>{if(!effUser||!effUser.isAdmin){alert("Seul l'administrateur peut annuler une purge.");return;}setPurgeMarks(prev=>({...prev,ranges:(prev.ranges||[]).filter(r=>r.ts!==ts)}));}} sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts,ranges:[...(prev&&prev.ranges||[]),{t:[sc.rapports&&"rapport",sc.evenements&&"evenement",sc.agenda&&"agenda",sc.rapportsSite&&"rapportSite"].filter(Boolean),from,to,ts}].slice(-15)}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
-      {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onResetGlobal={async()=>{
+      {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin djiPlan={appDjiPlan} fatPlan={appFatPlan} onBulkPlan={(siteName,maj)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,...maj}));else setAppFatPlan(prev=>({...prev,...maj}));}} currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onResetGlobal={async()=>{
    const stamp=Date.now();
    setAppJeunes([]);setAppMajeurs([]);setRapports([]);setEvenements([]);setPresences([]);setProjets([]);setAgenda([]);
    try{localStorage.removeItem(LS_KEY);}catch(e){}
