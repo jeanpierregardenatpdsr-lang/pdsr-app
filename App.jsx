@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-o";
+const APP_BUILD="2026-09-01-s";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -159,6 +159,86 @@ function pdfEcrivain(doc,state){
   };
 }
 const APP_NOTE=(a)=>APP_CRIT.map(c=>c.l+" : "+(((a.notes)||{})[c.k]||"—")).join("   ·   ");
+const PLAN_JR=["D","Lu","Ma","Me","Je","Ve","S"];
+const PLAN_MOIS=["JANVIER","FÉVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOÛT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DÉCEMBRE"];
+async function planningExcel(plans,etab){
+  const XLSX=await loadXLSX();
+  const wb=XLSX.utils.book_new();
+  plans.forEach(({nom,plan})=>{
+    const keys=Object.keys(plan||{}).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
+    const aoa=[[((etab&&etab.raisonSociale)||"Association PDSR")+" — Planning "+nom],
+      ["Édité le "+fmt(isoToday())],[],
+      ["Date","Jour","Équipe A","Équipe B","Congé","Observations"]];
+    if(!keys.length)aoa.push(["Aucun jour renseigné pour ce site."]);
+    let moisCourant="";
+    keys.forEach(k=>{
+      const d=new Date(k+"T12:00:00");
+      const lib=PLAN_MOIS[d.getMonth()]+" "+d.getFullYear();
+      if(lib!==moisCourant){aoa.push([]);aoa.push([lib]);moisCourant=lib;}
+      const e=plan[k]||{};
+      aoa.push([fmt(k),PLAN_JR[d.getDay()],e.a?"X":"",e.b?"X":"",e.v?"X":"",e.n||""]);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"]=[{wch:12},{wch:6},{wch:10},{wch:10},{wch:8},{wch:38}];
+    ws["!freeze"]={xSplit:0,ySplit:4};
+    XLSX.utils.book_append_sheet(wb,ws,nom.slice(0,28));
+  });
+  XLSX.writeFile(wb,"PDSR_Planning_"+isoToday()+".xlsx");
+}
+async function planningPDF(nomSite,plan,etab){
+  const jsPDF=await loadJsPDF();
+  const doc=new jsPDF({unit:"mm",format:"a4",orientation:"landscape"});
+  const W=297,H=210,M=12;
+  const keys=Object.keys(plan||{}).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&((plan[k]||{}).a||(plan[k]||{}).b||(plan[k]||{}).n||(plan[k]||{}).v)).sort();
+  if(!keys.length)throw new Error("Aucun jour renseigné pour "+nomSite+".");
+  const mois=[];keys.forEach(k=>{const c=k.slice(0,7);if(mois.indexOf(c)<0)mois.push(c);});
+  const pages=[];for(let i=0;i<mois.length;i+=3)pages.push(mois.slice(i,i+3));
+  const COL={a:[254,243,199],b:[219,234,254],ab:[224,231,255]};
+  pages.forEach((grp,pi)=>{
+    if(pi)doc.addPage();
+    doc.setFillColor(27,67,50);doc.rect(0,0,W,17,"F");
+    try{doc.addImage(PDSR_LOGO,"PNG",W-M-13,2.2,13,12.6);}catch(e){}
+    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(13);
+    doc.text("PLANNING DES ÉQUIPES — "+nomSite,M,8);
+    doc.setFont("helvetica","normal");doc.setFontSize(7.5);
+    doc.text(((etab&&etab.raisonSociale)||"Association PDSR")+" · Rotation le dimanche, les deux équipes sont présentes ce jour-là (relève)",M,13);
+    const colw=(W-2*M)/3;
+    grp.forEach((cm,mi)=>{
+      const x=M+mi*colw;let y=26;
+      const[an,mn]=cm.split("-").map(Number);
+      doc.setTextColor(184,134,11);doc.setFont("helvetica","bold");doc.setFontSize(9.5);
+      doc.text(PLAN_MOIS[mn-1]+" "+an,x,y);y+=5;
+      doc.setTextColor(90,90,90);doc.setFontSize(6.5);
+      doc.text("J",x,y);doc.text("Jr",x+6,y);doc.text("A",x+14,y);doc.text("B",x+20,y);doc.text("Observations",x+27,y);
+      y+=1.2;doc.setDrawColor(205,195,165);doc.line(x,y,x+colw-6,y);y+=3.6;
+      const nbj=new Date(an,mn,0).getDate();
+      for(let j=1;j<=nbj;j++){
+        const k=cm+"-"+String(j).padStart(2,"0");const e=plan[k];
+        if(e&&(e.a||e.b||e.n||e.v)){
+          const c=e.a&&e.b?COL.ab:e.a?COL.a:e.b?COL.b:[248,248,248];
+          doc.setFillColor(c[0],c[1],c[2]);doc.rect(x-1,y-2.7,colw-6,3.9,"F");
+          const d=new Date(k+"T12:00:00");
+          doc.setTextColor(25,25,25);doc.setFont("helvetica","normal");doc.setFontSize(6.5);
+          doc.text(String(j),x,y);doc.text(PLAN_JR[d.getDay()],x+6,y);
+          doc.setFont("helvetica","bold");
+          if(e.a)doc.text("X",x+14,y);
+          if(e.b)doc.text("X",x+20,y);
+          if(e.n){doc.setFont("helvetica","normal");doc.setFontSize(6);doc.setTextColor(13,38,89);doc.text(String(e.n).slice(0,30),x+27,y);}
+        }
+        y+=3.9;
+      }
+    });
+    let lx=M;
+    [["Équipe A",COL.a],["Équipe B",COL.b],["A + B (dimanche, relève)",COL.ab]].forEach(([l,c])=>{
+      doc.setFillColor(c[0],c[1],c[2]);doc.rect(lx,H-11,4,3,"F");
+      doc.setTextColor(80,80,80);doc.setFont("helvetica","normal");doc.setFontSize(6.5);
+      doc.text(l,lx+5.5,H-8.6);lx+=l.length*1.55+16;
+    });
+    doc.setTextColor(140,140,140);doc.setFontSize(6.5);
+    doc.text("Édité le "+fmt(isoToday())+"  ·  page "+(pi+1)+"/"+pages.length,W-M,H-8.6,{align:"right"});
+  });
+  doc.save("planning_"+String(nomSite).replace(/[^A-Za-z0-9]+/g,"_")+"_"+isoToday()+".pdf");
+}
 async function attestationStagePDF(st,sujet,etab){
   const jsPDF=await loadJsPDF();const doc=pdfNew(jsPDF);
   const s={y:pdfEntete(doc,etab,"ATTESTATION DE STAGE","Séjour de remobilisation — "+(sujet.site||""))};
@@ -1153,7 +1233,35 @@ function ProjetsPersonnalises({user,jeunes,majeurs,projets,onUpdate,etabConfig,u
   </div>);
 }
 
-function Planning({djiPlan,fatPlan,site,user,onUpdate}){
+function PlanningsPDF({user,docs,onAdd,onDelete}){
+  const[up,setUp]=useState(false);
+  const peut=user.role==="chef_service"||user.role==="directeur"||user.role==="coordinateur_site";
+  const liste=(docs||[]).filter(d=>d.categorie==="Planning").sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const ouvrir=(d)=>{try{const a=document.createElement("a");a.href=d.dataUrl;a.target="_blank";a.rel="noopener";a.download=d.name;document.body.appendChild(a);a.click();document.body.removeChild(a);}catch(e){alert("Ouverture impossible.");}};
+  const charger=(e)=>{const f=e.target.files[0];if(!f)return;
+    if(f.type!=="application/pdf"){alert("Seuls les fichiers PDF sont acceptés.");e.target.value="";return;}
+    if(f.size>4*1024*1024){alert("Fichier trop volumineux (4 Mo maximum).");e.target.value="";return;}
+    setUp(true);const r=new FileReader();
+    r.onload=()=>{onAdd({id:Date.now(),name:f.name,type:f.type,size:f.size,dataUrl:r.result,categorie:"Planning",destinataire:"Tous",deposePar:user.name,deposeParId:user.id,date:new Date().toISOString(),signatures:[]});setUp(false);};
+    r.onerror=()=>{alert("Erreur de lecture du fichier.");setUp(false);};
+    r.readAsDataURL(f);e.target.value="";};
+  return(<div style={{...S.card,marginBottom:14}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:liste.length?10:0}}>
+      <div><div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>Plannings à consulter</div>
+      <div style={{fontSize:11.5,color:C.light}}>{liste.length?"Touchez un planning pour l'ouvrir.":"Aucun planning déposé pour le moment."}</div></div>
+      {peut&&<label style={{...S.btnP,cursor:"pointer",fontSize:12,padding:"8px 14px",minHeight:0}}>{up?"Chargement…":"Déposer un PDF"}<input type="file" accept="application/pdf,.pdf" style={{display:"none"}} onChange={charger}/></label>}
+    </div>
+    {liste.map(d=>(<div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderTop:"1px solid "+C.border,flexWrap:"wrap"}}>
+      <div onClick={()=>ouvrir(d)} style={{flex:1,minWidth:150,cursor:"pointer"}}>
+        <div style={{fontSize:13.5,fontWeight:700,color:C.goldDark}}>{d.name}</div>
+        <div style={{fontSize:11,color:C.light}}>Déposé par {d.deposePar||"?"} le {fmt(String(d.date||"").slice(0,10))}{d.size?" · "+Math.round(d.size/1024)+" Ko":""}</div>
+      </div>
+      <button onClick={()=>ouvrir(d)} style={{...S.btnO,fontSize:11.5,padding:"6px 12px",minHeight:0}}><Download size={13}/>Ouvrir</button>
+      {peut&&<button onClick={()=>{if(confirm("Retirer ce planning ?"))onDelete(d.id);}} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>}
+    </div>))}
+  </div>);
+}
+function Planning({djiPlan,fatPlan,site,user,onUpdate,docs,onAddDoc,onDeleteDoc}){
   const[selSite,setSelSite]=useState(site==="Tous"?"Fatick":site);
   const plan=selSite==="Fatick"?fatPlan:djiPlan;
   const[month,setMonth]=useState(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");});
@@ -1172,7 +1280,8 @@ function Planning({djiPlan,fatPlan,site,user,onUpdate}){
   const saveNote=(key)=>{const cur=plan[key]||{};const updated={...cur,n:editNote};onUpdate(selSite,key,updated);setEditDay(null);setEditNote("");};
   const setFullWeek=(weekStart,a,b)=>{if(!canEdit)return;for(let i=0;i<7;i++){const dt=new Date(weekStart);dt.setDate(dt.getDate()+i);if(dt.getDay()===0)continue;const key=dt.toISOString().slice(0,10);const cur=plan[key]||{};onUpdate(selSite,key,{...cur,a,b});}};
   const getWeekMonday=(dateStr)=>{const d=new Date(dateStr);const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);return new Date(d.setDate(diff));};
-  return(<div>{site==="Tous"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}><button onClick={()=>setSelSite("Fatick")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Fatick"?C.gold:"#eee",color:selSite==="Fatick"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Fatick</button><button onClick={()=>setSelSite("Djilass")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Djilass"?C.gold:"#eee",color:selSite==="Djilass"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Djilass</button></div>}
+  return(<div><PlanningsPDF user={user} docs={docs} onAdd={onAddDoc} onDelete={onDeleteDoc}/>
+    {site==="Tous"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}><button onClick={()=>setSelSite("Fatick")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Fatick"?C.gold:"#eee",color:selSite==="Fatick"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Fatick</button><button onClick={()=>setSelSite("Djilass")} style={{padding:"6px 16px",borderRadius:8,border:"none",background:selSite==="Djilass"?C.gold:"#eee",color:selSite==="Djilass"?"#fff":"#333",fontWeight:600,cursor:"pointer"}}>Djilass</button></div>}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap"}}><button onClick={prev} style={{background:C.gold,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>◀</button><h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:0}}>{MN[m]} {y} — Planning {selSite}</h2><button onClick={next} style={{background:C.gold,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:15,fontWeight:700}}>▶</button></div>
     {canEdit&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
       <div style={{fontSize:12,color:C.light,padding:"6px 0"}}>Cliquez sur un jour pour modifier. Raccourcis semaine :</div>
@@ -1641,11 +1750,12 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
           else res[j.key]={a:false,b:false};
         });return res;};
       const proj=calcul();
-      const aEcrire=Object.keys(proj).filter(k=>{const ex=plan[k];if(!ex)return true;if(planEcraser)return true;return !(ex.n||ex.a||ex.b||ex.v);});
+      const protege=(k)=>{if(planEcraser)return false;const ex=plan[k];if(!ex||typeof ex!=="object")return false;return !!(ex.n||ex.v);};
+      const aEcrire=Object.keys(proj).filter(k=>!protege(k));
       const proteges=Object.keys(proj).length-aEcrire.length;
       const appliquer=()=>{
-        if(!aEcrire.length){alert("Aucun jour à écrire sur cette période.");return;}
-        if(!confirm("Appliquer le modèle sur "+aEcrire.length+" jour(s) du site "+planSite+" ?"+(proteges?"\n\n"+proteges+" jour(s) déjà renseignés seront conservés.":"")))return;
+        if(!aEcrire.length){alert("Les "+Object.keys(proj).length+" jours de cette période portent tous une note ou un congé, ils sont donc protégés.\n\nCochez « Écraser les jours déjà renseignés » pour les remplacer malgré tout.");return;}
+        if(!confirm("Appliquer le modèle sur "+aEcrire.length+" jour(s) du site "+planSite+" ?"+(proteges?"\n\n"+proteges+" jour(s) avec note ou congé seront gardés tels quels.":"")))return;
         const maj={};aEcrire.forEach(k=>{maj[k]={...(plan[k]||{}),...proj[k]};});
         onBulkPlan(planSite,maj);
         alert(aEcrire.length+" jour(s) mis à jour.");
@@ -1674,18 +1784,32 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <div><label style={{...S.lbl}}>Commence par</label><select style={{...S.inp}} value={planDebut} onChange={e=>setPlanDebut(e.target.value)}><option value="a">Équipe A</option><option value="b">Équipe B</option></select></div>
           </div>}
           <label style={{display:"flex",alignItems:"center",gap:9,fontSize:13,fontWeight:700,color:C.dark,cursor:"pointer",padding:"9px 11px",borderRadius:8,background:planEcraser?"#FFEBEE":"transparent",border:"1.5px solid "+(planEcraser?"#C62828":C.border)}}>
-            <input type="checkbox" checked={planEcraser} onChange={e=>setPlanEcraser(e.target.checked)} style={{accentColor:"#C62828",width:17,height:17}}/>Écraser les jours déjà renseignés</label>
+            <input type="checkbox" checked={planEcraser} onChange={e=>setPlanEcraser(e.target.checked)} style={{accentColor:"#C62828",width:17,height:17}}/>Écraser aussi les jours avec note ou congé</label>
         </div>
         {liste.length>0&&<div style={{...S.card,marginBottom:12}}>
-          <div style={{fontSize:12.5,fontWeight:800,color:C.dark,marginBottom:8}}>Aperçu — {liste.length} jour(s), {aEcrire.length} à écrire{proteges?", "+proteges+" conservé(s)":""}</div>
+          <div style={{fontSize:12.5,fontWeight:800,color:C.dark,marginBottom:4}}>Aperçu — {liste.length} jour(s), {aEcrire.length} à écrire{proteges?", "+proteges+" gardé(s)":""}</div>
+          <div style={{fontSize:11,color:C.light,marginBottom:8}}>Seuls les jours portant une note (arrivée, départ, RHO…) ou un congé sont gardés. Les jours qui n'ont qu'une équipe seront remplacés.</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{apercu.map(j=>{const q=proj[j.key];const lab=q.a&&q.b?"A+B":q.a?"A":q.b?"B":"—";const bg=q.a&&q.b?"#e0e7ff":q.a?"#fef3c7":q.b?"#dbeafe":C.sableLight;const gar=aEcrire.indexOf(j.key)<0;
-            return(<div key={j.key} style={{minWidth:56,padding:"6px 4px",borderRadius:7,background:gar?C.sableLight:bg,border:"1px solid "+(gar?"#ddd":"transparent"),textAlign:"center",opacity:gar?0.45:1}}>
+            return(<div key={j.key} style={{minWidth:58,padding:"6px 4px",borderRadius:7,background:bg,border:"1px solid "+(gar?"#C62828":"transparent"),textAlign:"center",opacity:gar?0.5:1}}>
               <div style={{fontSize:11,color:C.light}}>{fmt(j.key).slice(0,5)}</div>
-              <div style={{fontSize:12.5,fontWeight:800,color:C.dark}}>{gar?"—":lab}</div>
+              <div style={{fontSize:12.5,fontWeight:800,color:C.dark}}>{lab}</div>
+              {gar&&<div style={{fontSize:10,color:"#C62828",fontWeight:800}}>gardé</div>}
             </div>);})}</div>
           {liste.length>14&&<div style={{fontSize:11,color:C.light,marginTop:6}}>Les 14 premiers jours sont affichés.</div>}
         </div>}
         <button onClick={appliquer} disabled={!liste.length} style={{...S.btnP,width:"100%",justifyContent:"center"}}><Check size={15}/>Appliquer au planning</button>
+        <div style={{...S.card,marginTop:14}}>
+          <div style={{fontSize:13.5,fontWeight:800,color:C.dark,marginBottom:4}}>Exporter les plannings</div>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Un classeur Excel, une feuille par site, regroupé par mois : date, jour, équipe A, équipe B, congé, observations.</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
+            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);await planningPDF("Djilass",djiPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
+          </div>
+        </div>
       </div>);})()}
 
     {tab==="registre"&&(()=>{
@@ -2874,7 +2998,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
  }} onPurgeLogs={()=>{setPurgeMarks(p=>({...p,loginLogs:nowSrv()}));setLoginLogs([]);}} onPurgeDeletionLogs={()=>{setPurgeMarks(p=>({...p,deletionLogs:nowSrv()}));setDeletionLogs([]);}} presences={presences} onChangeP={changeP} agenda={agenda} onUpdateAgenda={setAgenda} projets={projets} rapportsSite={rapportsSite} onUpdateRapportsSite={setRapportsSite} onDeleteRapport={delR} onUpdateRapport={(id,patch)=>setRapports(p=>p.map(r=>r.id===id?{...r,...patch}:r))} onDeleteEvenement={delE} onUpdateEvenements={setEvenements}/>}
         {page==="rapport-hebdo"&&(effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportHebdo user={effUser} rapports={rapports} presences={presences} evenements={evenements} jeunes={appJeunes} majeurs={appMajeurs} sejourConfig={sejourConfig}/>}
         {page==="projets"&&<ProjetsPersonnalises user={effUser} jeunes={appJeunes} majeurs={appMajeurs} projets={projets} onUpdate={setProjets} etabConfig={etabConfig} users={appUsers}/>}
-      {page==="planning"&&<Planning djiPlan={appDjiPlan} fatPlan={appFatPlan} site={effUser.site} user={effUser} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
+      {page==="planning"&&<Planning docs={docs} onAddDoc={(d)=>setDocs(p=>[...(p||[]),d])} onDeleteDoc={(id)=>setDocs(p=>(p||[]).filter(x=>x.id!==id))} djiPlan={appDjiPlan} fatPlan={appFatPlan} site={effUser.site} user={effUser} onUpdate={(siteName,key,data)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,[key]:data}));else setAppFatPlan(prev=>({...prev,[key]:data}));}}/>}
         {page==="espace-rh"&&<EspaceRH user={effUser} docs={docs} users={appUsers} onUpdateUsers={setAppUsers} etabConfig={etabConfig} onAdd={(d)=>setDocs(p=>[...p,d])} onSign={(id,sig)=>setDocs(p=>p.map(x=>x.id===id?{...x,signatures:[...(x.signatures||[]),sig]}:x))} onDelete={(id)=>setDocs(p=>p.filter(x=>x.id!==id))}/>}
       </div></main>
     </div>
