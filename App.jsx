@@ -29,7 +29,7 @@ function loadXLSX(){
 
 
 export class ErrorBoundary extends React.Component{constructor(p){super(p);this.state={hasError:false,error:null};}static getDerivedStateFromError(e){return{hasError:true,error:e};}componentDidCatch(e,i){console.error("PDSR Error:",e,i);}render(){if(this.state.hasError){return React.createElement("div",{style:{padding:40,textAlign:"center"}},React.createElement("h2",null,"Une erreur est survenue"),React.createElement("p",null,String(this.state.error)),React.createElement("button",{onClick:()=>{localStorage.removeItem("pdsr_data");window.location.reload();},style:{padding:"10px 20px",background:"#2c6fbb",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:16}},"Recharger l'application"));}return this.props.children;}}
-const APP_BUILD="2026-09-01-w";
+const APP_BUILD="2026-09-01-z";
 const RESET_KEY="pdsr_reset";
 const getLocalReset=()=>{try{return Number(localStorage.getItem(RESET_KEY)||0);}catch(e){return 0;}};
 const setLocalReset=(v)=>{try{localStorage.setItem(RESET_KEY,String(v));}catch(e){}};
@@ -80,6 +80,63 @@ const STAGE_ST=["Prévu","En cours","Terminé","Interrompu"];
 const STAGE_STC={"Prévu":{bg:"#E3F2FD",c:"#1565C0"},"En cours":{bg:"#FFF8E1",c:"#B8860B"},"Terminé":{bg:"#E8F5E9",c:"#2E7D32"},"Interrompu":{bg:"#FFEBEE",c:"#C62828"}};
 const APP_CRIT=[{k:"assiduite",l:"Assiduité et ponctualité"},{k:"comportement",l:"Comportement et savoir-être"},{k:"technique",l:"Acquisition des gestes professionnels"},{k:"autonomie",l:"Autonomie"},{k:"integration",l:"Intégration dans l'équipe"}];
 const APP_NIV=["Insuffisant","En progression","Satisfaisant","Très satisfaisant"];
+const CONTACT_TYPES=["Éducateur référent France","Référent ASE","Titulaire de l'autorité parentale","Famille","Tuteur de stage","Médecin / santé","Établissement scolaire","Avocat","Autre"];
+const contactsDe=(p)=>((p&&p.contacts)||[]);
+const destinatairesRapport=(p)=>contactsDe(p).filter(c=>c.rapportHebdo);
+const contactsTxt=(l,champ)=>l.map(c=>c[champ]).filter(Boolean).join(" ; ");
+function ContactsPanel({sujet,user,onUpdate}){
+  const[ouvert,setOuvert]=useState(false);
+  const[f,setF]=useState({type:CONTACT_TYPES[0],nom:"",fonction:"",tel:"",email:"",notes:"",rapportHebdo:true});
+  const liste=contactsDe(sujet);
+  const save=(arr)=>onUpdate(sujet.id,"contacts",arr);
+  const ajouter=()=>{if(!f.nom.trim()){alert("Le nom du contact est obligatoire.");return;}
+    save([...liste,{id:Date.now(),...f,nom:f.nom.trim(),tel:f.tel.trim(),email:f.email.trim(),creeLe:isoToday(),creePar:(user&&user.name)||""}]);
+    setF({type:CONTACT_TYPES[0],nom:"",fonction:"",tel:"",email:"",notes:"",rapportHebdo:true});setOuvert(false);};
+  const patch=(id,p)=>save(liste.map(c=>c.id===id?{...c,...p}:c));
+  const suppr=(id)=>{if(confirm("Supprimer ce contact ?"))save(liste.filter(c=>c.id!==id));};
+  const dest=destinatairesRapport(sujet).length;
+  return(<div style={{...S.card,marginTop:12}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
+      <div><div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>Contacts ({liste.length})</div>
+      <div style={{fontSize:11,color:dest?C.light:"#C62828",fontWeight:dest?600:800}}>{dest?dest+" destinataire(s) du rapport hebdomadaire":"Aucun destinataire du rapport hebdomadaire"}</div></div>
+      <button onClick={()=>setOuvert(!ouvert)} style={{...S.btnO,fontSize:11.5,padding:"6px 12px",minHeight:0}}><Plus size={13}/>Contact</button>
+    </div>
+    {ouvert&&<div style={{...S.card,background:C.sableLight,marginBottom:10}}>
+      <label style={{...S.lbl}}>Qualité</label>
+      <select style={{...S.inp,marginBottom:8}} value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))}>{CONTACT_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <div><label style={{...S.lbl}}>Nom et prénom</label><input style={{...S.inp}} value={f.nom} onChange={e=>setF(p=>({...p,nom:e.target.value}))}/></div>
+        <div><label style={{...S.lbl}}>Fonction / service</label><input style={{...S.inp}} value={f.fonction} onChange={e=>setF(p=>({...p,fonction:e.target.value}))}/></div>
+        <div><label style={{...S.lbl}}>Téléphone</label><input type="tel" style={{...S.inp}} value={f.tel} onChange={e=>setF(p=>({...p,tel:e.target.value}))}/></div>
+        <div><label style={{...S.lbl}}>Courriel</label><input type="email" style={{...S.inp}} value={f.email} onChange={e=>setF(p=>({...p,email:e.target.value}))}/></div>
+      </div>
+      <label style={{...S.lbl}}>Précisions</label>
+      <input style={{...S.inp,marginBottom:8}} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))}/>
+      <label style={{display:"flex",alignItems:"center",gap:9,fontSize:13,fontWeight:700,color:C.dark,cursor:"pointer",padding:"9px 11px",borderRadius:8,background:f.rapportHebdo?C.goldLight:"transparent",border:"1.5px solid "+(f.rapportHebdo?C.gold:C.border)}}>
+        <input type="checkbox" checked={f.rapportHebdo} onChange={e=>setF(p=>({...p,rapportHebdo:e.target.checked}))} style={{accentColor:C.gold,width:17,height:17}}/>Destinataire du rapport hebdomadaire</label>
+      <div style={{display:"flex",gap:8,marginTop:10}}>
+        <button onClick={ajouter} style={{...S.btnP,flex:1,justifyContent:"center"}}><Check size={14}/>Ajouter</button>
+        <button onClick={()=>setOuvert(false)} style={{...S.btnO,flex:1,justifyContent:"center"}}>Annuler</button>
+      </div>
+    </div>}
+    {liste.length===0&&<div style={{fontSize:12,color:C.light}}>Aucun contact enregistré.</div>}
+    {liste.map(c=>(<div key={c.id} style={{padding:"10px 0",borderTop:"1px solid "+C.border}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:150}}>
+          <div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>{c.nom}{c.rapportHebdo&&<span style={{fontSize:10,fontWeight:800,color:C.goldDark,background:C.goldLight,borderRadius:5,padding:"2px 7px",marginLeft:7}}>RAPPORT HEBDO</span>}</div>
+          <div style={{fontSize:11.5,color:C.mid}}>{c.type}{c.fonction?" · "+c.fonction:""}</div>
+          <div style={{fontSize:12,color:C.mid,marginTop:3}}>
+            {c.tel&&<a href={"tel:"+c.tel} style={{color:C.goldDark,fontWeight:700,textDecoration:"none",marginRight:12}}>{c.tel}</a>}
+            {c.email&&<a href={"mailto:"+c.email} style={{color:C.goldDark,fontWeight:700,textDecoration:"none"}}>{c.email}</a>}
+          </div>
+          {c.notes&&<div style={{fontSize:11.5,color:C.light,marginTop:2}}>{c.notes}</div>}
+        </div>
+        <button onClick={()=>patch(c.id,{rapportHebdo:!c.rapportHebdo})} title="Destinataire du rapport hebdomadaire" style={{...S.btnO,fontSize:11,padding:"5px 10px",minHeight:0}}>{c.rapportHebdo?"Retirer du hebdo":"Mettre au hebdo"}</button>
+        <button onClick={()=>suppr(c.id)} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+      </div>
+    </div>))}
+  </div>);
+}
 function StagesPanel({sujet,user,users,onUpdate,etabConfig}){
   const stages=(sujet.stages)||[];
   const[form,setForm]=useState(false);
@@ -559,6 +616,21 @@ const ETAB_DEFAULT={raisonSociale:"Association PDSR",sousTitre:"Promotion Des S�
 const PROJ_DOM_MINEUR=[{k:"dev",l:"Développement, santé physique et psychique"},{k:"fam",l:"Relations avec la famille et les tiers"},{k:"sco",l:"Scolarité et vie sociale"}];
 const PROJ_DOM_MAJEUR=[{k:"ins",l:"Insertion professionnelle et formation"},{k:"log",l:"Logement, ressources et autonomie"},{k:"san",l:"Santé et accès aux droits"},{k:"soc",l:"Réseau social et familial"}];
 const OBJ_STATUTS=["En cours","Atteint","Partiellement atteint","Abandonné"];
+const DOCS_OBLIG=[
+ {k:"livret",l:"Livret d'accueil",ref:"Art. L. 311-4 CASF",val:0},
+ {k:"charte",l:"Charte des droits et libertés de la personne accueillie",ref:"Art. L. 311-4 CASF",val:0},
+ {k:"reglement",l:"Règlement de fonctionnement",ref:"Art. L. 311-7 CASF",val:0},
+ {k:"dipc",l:"Modèle de document individuel de prise en charge",ref:"Art. L. 311-4 CASF",val:0},
+ {k:"projetEtab",l:"Projet d'établissement",ref:"Art. L. 311-8 CASF",val:5},
+ {k:"cvs",l:"Règlement du conseil de la vie sociale",ref:"Art. L. 311-6 CASF",val:0}];
+const RGPD_DEFAUT=[
+ {id:1,finalite:"Suivi éducatif des jeunes accueillis",personnes:"Mineurs confiés par l'ASE et la PJJ",donnees:"Identité, coordonnées des titulaires de l'autorité parentale, observations éducatives, données de santé",destinataires:"Équipe éducative, chef de service, directeur, référents ASE",duree:"Durée du séjour puis archivage selon les délais du département",securite:"Accès par identifiant, hébergement Firebase, sauvegardes quotidiennes"},
+ {id:2,finalite:"Gestion du personnel",personnes:"Salariés de l'association",donnees:"Identité, coordonnées, entretiens d'évaluation, demandes de congés et d'acomptes",destinataires:"Directeur, chefs de service",duree:"Cinq ans après le départ du salarié",securite:"Accès restreint à la direction"}];
+const anneesDepuis=(d)=>{const b=normDate(d);if(!b)return null;return Math.floor((new Date()-new Date(b+"T12:00:00"))/(365.25*86400000));};
+const ADM_CHAMPS=[{k:"nom",l:"Nom"},{k:"site",l:"Site"},{k:"dateDebut",l:"Date d'entrée"},{k:"dateFin",l:"Date de sortie prévue"},{k:"telParent1",l:"Téléphone parent"},{k:"emailASE",l:"Courriel ASE"}];
+const ADM_DEFAUT=["site","dateDebut"];
+const admRequis=(ec)=>{const v=(ec||{}).admissionRequis;return Array.isArray(v)?v:ADM_DEFAUT;};
+const admManquants=(fiche,ec)=>admRequis(ec).filter(k=>!String((fiche||{})[k]||"").trim()).map(k=>(ADM_CHAMPS.find(c=>c.k===k)||{l:k}).l);
 const PROJ_CFG_DEFAULT={delaiDipc:15,delaiObjectifs:30,delaiRevision:75,delaiBilan:150};
 const projCfg=(ec)=>({...PROJ_CFG_DEFAULT,...((ec||{}).projet||{})});
 const isoToday=()=>new Date().toISOString().slice(0,10);
@@ -856,7 +928,8 @@ function JeuneDetail({jeune,rapports,presences,evenements,user,onAddR,onAddE,onC
     {tab==="rapports"&&<div>{jr.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:jr.map(r=><div key={r.id} style={{...S.card}}><div style={{fontSize:12,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)}{r.author&&<span style={{fontWeight:400,fontSize:12,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}<button style={{...S.btnP,marginTop:8}} onClick={()=>onAddR(jeune)}><Plus size={15}/>Nouveau rapport</button></div>}
     {tab==="présences"&&<div><div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>{WEEKDATES.map((date,i)=>{const p=jp.find(p2=>p2.date===date);const st=p?.statut||"Présent";const next={Présent:"Absent",Absent:"Retard",Retard:"Présent"};const sc2=SC[st]||SC.Présent;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:12,fontWeight:700,color:C.light}}>{WD[i]}</div><button onClick={()=>onCP(jeune.id,date,next[st])} style={{width:"100%",aspectRatio:"1",borderRadius:7,background:sc2.bg,border:"none",cursor:"pointer",color:sc2.text,fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap"}}>{sc2.icon}</button></div>);})}
     </div></div>}
-    {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[jeune]} majeurs={[]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={jeune.id}/>}
+    {tab==="fiche"&&<ContactsPanel sujet={jeune} user={user} onUpdate={onUpdateJeune}/>}
+      {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[jeune]} majeurs={[]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={jeune.id}/>}
       {tab==="stages"&&<StagesPanel sujet={jeune} user={user} users={users} onUpdate={onUpdateJeune} etabConfig={etabConfig}/>}
       {tab==="incidents"&&<div>{je.length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:je.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,borderLeft:`4px solid ${gc.dot}`,animation:"cardEnter 0.3s ease-out"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5,flexWrap:"wrap"}}><div style={{fontWeight:800,color:C.dark}}>{e.titre}</div><span style={{...{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}}>{e.gravite}</span></div><p style={{margin:0,fontSize:12,color:C.mid}}>{e.description}</p><div style={{fontSize:11.5,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" - par "+e.author}</div></div>);})}
     <button style={{...S.btnO,marginTop:8}} onClick={()=>onAddE(jeune)}><Plus size={15}/>Déclarer événement</button></div>}
@@ -1471,8 +1544,10 @@ function ArchivesSejours({currentUser}){
   </div>);
 }
 
-function Admin({djiPlan,fatPlan,onBulkPlan,users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,onResetGlobal,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
-  const[tab,setTab]=useState("educs");const[regTab,setRegTab]=useState("accueil");const[cgType,setCgType]=useState("securite");const[cgDate,setCgDate]=useState(isoToday());const[cgObjet,setCgObjet]=useState("");const[cgSuites,setCgSuites]=useState("");const[depQui,setDepQui]=useState("");const[depObjet,setDepObjet]=useState("");const[depDate,setDepDate]=useState(isoToday());
+function Admin({docs,onAddDoc,djiPlan,fatPlan,onBulkPlan,users,jeunes,onUpdateUsers,onUpdateJeunes,loginLogs,onRefresh,appMajeurs,onUpdateMajeurs,deletionLogs,onPurgeLogs,onPurgeDeletionLogs,onResetGlobal,rapports,evenements,sejourConfig,onUpdateSejours,presences,onChangeP,agenda,onUpdateAgenda,projets,rapportsSite,onUpdateRapportsSite,onDeleteRapport,onUpdateRapport,onDeleteEvenement,onUpdateEvenements,currentUser,isAdmin,onViewAs,onForcePush,onForcePull,onCheckIntegrity,onBackup,onRestore,etabConfig,onUpdateEtab,onArchiveSejour}){
+  const[tab,setTab]=useState("educs");const[tabQ,setTabQ]=useState("");const tracer=(quoi,format)=>{if(!onUpdateEtab)return;const e={quand:new Date().toLocaleString("fr-FR"),quoi,format,par:(currentUser&&currentUser.name)||"?"};onUpdateEtab(prev=>({...prev,exportLog:[...(((prev&&prev.exportLog)||[]).slice(-199)),e]}));};
+  const[hasMes,setHasMes]=useState("");const[hasResp,setHasResp]=useState("");const[hasEch,setHasEch]=useState("");const[cvsNom,setCvsNom]=useState("");const[cvsQual,setCvsQual]=useState("");const[cvsDate,setCvsDate]=useState(isoToday());const[cvsObjet,setCvsObjet]=useState("");const[cvsAvis,setCvsAvis]=useState("");const[annQ,setAnnQ]=useState("");const[annType,setAnnType]=useState("Tous");const[annSite,setAnnSite]=useState("Tous");const[annHebdo,setAnnHebdo]=useState(false);
+const[regTab,setRegTab]=useState("accueil");const[cgType,setCgType]=useState("securite");const[cgDate,setCgDate]=useState(isoToday());const[cgObjet,setCgObjet]=useState("");const[cgSuites,setCgSuites]=useState("");const[depQui,setDepQui]=useState("");const[depObjet,setDepObjet]=useState("");const[depDate,setDepDate]=useState(isoToday());
 const[planSite,setPlanSite]=useState("Fatick");const[planD1,setPlanD1]=useState("");const[planD2,setPlanD2]=useState("");const[planMode,setPlanMode]=useState("rotation");const[planBascule,setPlanBascule]=useState("0");const[planDebut,setPlanDebut]=useState("a");const[planEcraser,setPlanEcraser]=useState(false);
 const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);const[logTab,setLogTab]=useState("connexions");
   const[opFilter,setOpFilter]=useState("");const[opSite,setOpSite]=useState("Tous");const[editRap,setEditRap]=useState(null);const[editRapText,setEditRapText]=useState("");const[editRapDate,setEditRapDate]=useState("");const[editRapJeune,setEditRapJeune]=useState("");
@@ -1510,12 +1585,14 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
   const STATUTS=["actif","sorti","archivé"];
   const removeEduc=(id)=>{if(!confirm("Supprimer cet éducateur ?"))return;onUpdateUsers(users.filter(u=>u.id!==id));const updated=jeunes.map(j=>j.educateurId===id?{...j,educateurId:null}:j);onUpdateJeunes(updated);};
   const toggleEduc=(id)=>{onUpdateUsers(users.map(u=>u.id===id?{...u,disabled:!u.disabled}:u))};
-  const addJeune=()=>{if(!newPrenom.trim())return;const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:newTelP1,telJeune:newTelJ,emailASE:newEmailASE,dateDebut:newDateD,dateFin:newDateF}]);setNewPrenom("");setNewNom("");setNewTelP1("");setNewTelJ("");setNewEmailASE("");setNewDateD("");setNewDateF("");setShowAddJeune(false);};
+  const addJeune=()=>{if(!newPrenom.trim())return;{const m=admManquants({nom:newNom,site:newSite,dateDebut:newDateD,dateFin:newDateF,telParent1:newTelP1,emailASE:newEmailASE},etabConfig);if(m.length){alert("Champs obligatoires à l'admission non renseignés :\n\n- "+m.join("\n- ")+"\n\nCette liste se règle dans Administration \u203A Établissement.");return;}}const id=Math.max(...jeunes.map(j=>j.id),0)+1;onUpdateJeunes([...jeunes,{id,prenom:newPrenom,nom:newNom,site:newSite,educateurId:null,referentA:"",referentB:"",referentC:"",referentD:"",statut:"actif",telParent1:newTelP1,telJeune:newTelJ,emailASE:newEmailASE,dateDebut:newDateD,dateFin:newDateF}]);setNewPrenom("");setNewNom("");setNewTelP1("");setNewTelJ("");setNewEmailASE("");setNewDateD("");setNewDateF("");setShowAddJeune(false);};
   const assignJeune=(jeuneId,educName)=>{onUpdateJeunes(jeunes.map(j=>j.id===jeuneId?{...j,referentA:educName||""}:j));const educ=users.find(u=>u.name===educName);if(educ&&!educ.assignedIds?.includes(jeuneId)){onUpdateUsers(users.map(u=>u.name===educName?{...u,assignedIds:[...(u.assignedIds||[]),jeuneId]}:u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}else if(!educName){onUpdateUsers(users.map(u=>u.assignedIds?.includes(jeuneId)?{...u,assignedIds:u.assignedIds.filter(i=>i!==jeuneId)}:u));}};
   const removeJeune=(id)=>{if(!confirm("Supprimer ce jeune ?"))return;onUpdateJeunes((jeunes||[]).filter(j=>j.id!==id));onUpdateUsers(users.map(u=>u.assignedIds?{...u,assignedIds:u.assignedIds.filter(i=>i!==id)}:u));};
   return(<div style={{padding:"18px 14px",maxWidth:800,margin:"0 auto"}}>
     <h2 style={{fontSize:18,fontWeight:900,color:C.dark,margin:"0 0 14px"}}>Administration</h2>
-    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-presences",l:"Présences"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Système",items:[{k:"config",l:"Établissement"},{k:"registre",l:"Registres obligatoires"},{k:"planning-cfg",l:"Planning"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
+    <input value={tabQ} onChange={e=>setTabQ(e.target.value)} placeholder="Rechercher un onglet…" style={{...S.inp,marginBottom:12}}/>
+    {[{g:"Comptes & accès",items:[{k:"educs",l:"Équipe"},{k:"creds",l:"Identifiants"}]},{g:"Bénéficiaires",items:[{k:"jeunes",l:"Jeunes"},{k:"majeurs",l:"Majeurs"}]},{g:"Données opérationnelles",items:[{k:"op-rapports",l:"Rapports"},{k:"op-incidents",l:"Incidents / EIG"},{k:"op-agenda",l:"Agenda"},{k:"op-projets",l:"Projets"},{k:"op-rsite",l:"Rapports de site"}]},{g:"Pilotage",items:[{k:"alertes",l:"Alertes / Qualité"},{k:"stats",l:"Statistiques"},{k:"suivi-rapports",l:"Suivi rapports"},{k:"fiche360",l:"Fiche 360"}]},{g:"Conformité",items:[{k:"annuaire",l:"Annuaire"},{k:"registre",l:"Registres obligatoires"},{k:"docs-oblig",l:"Documents obligatoires"},{k:"cvs",l:"Conseil de la vie sociale"},{k:"has",l:"Évaluation HAS"},{k:"rgpd",l:"Registre RGPD"},{k:"exports",l:"Journal des exports"}]},
+      {g:"Système",items:[{k:"config",l:"Établissement"},{k:"planning-cfg",l:"Planning"},{k:"projets-cfg",l:"Projet personnalisé"},{k:"entretiens",l:"Entretiens individuels"},{k:"sejours",l:"Séjours"},{k:"archives",l:"Archives"},{k:"logs",l:"Logs"},{k:"modifs",l:"Modifications"},...(isAdmin?[{k:"maintenance",l:"Maintenance"}]:[])]}].map(grp=>({...grp,items:grp.items.filter(it=>!tabQ.trim()||deacc(it.l).includes(deacc(tabQ)))})).filter(grp=>grp.items.length).map(grp=>(<div key={grp.g} style={{marginBottom:10}}>
       <div style={{fontSize:12,fontWeight:800,color:C.light,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{grp.g}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{grp.items.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${tab===t.k?C.gold:C.border}`,background:tab===t.k?C.gold:C.white,color:tab===t.k?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>)}</div>
     </div>))}
@@ -1559,6 +1636,11 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
               <button onClick={()=>resetPwd(u)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.gold,background:C.goldLight,color:C.goldDark,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Réinit. MDP</button>
               {u.role!=="directeur"&&<button onClick={()=>{if(confirm("Supprimer le compte de "+u.name+" ?"))onUpdateUsers(users.filter(x=>x.id!==u.id));}} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C62828",background:"#FFEBEE",color:"#C62828",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>×</button>}
             </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border}}>
+            <div><label style={{...S.lbl}}>Date d'embauche</label><input type="date" style={{...S.inp}} value={u.dateEmbauche||""} onChange={e=>onUpdateUsers(users.map(x=>x.id===u.id?{...x,dateEmbauche:e.target.value}:x))}/></div>
+            <div><label style={{...S.lbl}}>Date de sortie</label><input type="date" style={{...S.inp}} value={u.dateSortie||""} onChange={e=>onUpdateUsers(users.map(x=>x.id===u.id?{...x,dateSortie:e.target.value}:x))}/></div>
+          </div>
+          {!u.dateEmbauche&&<div style={{fontSize:11,color:"#C62828",fontWeight:700,marginTop:6}}>Date d'embauche manquante : le registre unique du personnel est incomplet.</div>}
           </div>
         </div>)}
       </div>;})()}
@@ -1903,13 +1985,238 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
           <div style={{fontSize:13.5,fontWeight:800,color:C.dark,marginBottom:4}}>Exporter les plannings</div>
           <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Un classeur Excel, une feuille par site, regroupé par mois : date, jour, équipe A, équipe B, congé, observations.</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
-            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);tracer("Planning","Excel");}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);tracer("Planning","Excel");}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
           </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
-            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);await planningPDF("Djilass",djiPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
+            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);tracer("Planning","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
+            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);tracer("Planning","PDF");await planningPDF("Djilass",djiPlan,etabConfig);tracer("Planning","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
           </div>
+        </div>
+      </div>);})()}
+
+    {tab==="has"&&(()=>{
+      const h=((etabConfig&&etabConfig.has)||{mesures:[]});
+      const maj=(p)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,has:{...{mesures:[]},...((prev&&prev.has)||{}),...p}}));
+      const mes=h.mesures||[];
+      const faites=mes.filter(m=>m.statut==="Réalisée").length;
+      const retard=h.prochaine&&normDate(h.prochaine)<isoToday();
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+(retard?"#C62828":C.gold),marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Évaluation de la qualité</h3>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Référentiel d'évaluation de la Haute Autorité de santé. Suivi des échéances et du plan d'action.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><label style={{...S.lbl}}>Dernière évaluation</label><input type="date" style={{...S.inp}} value={h.derniere||""} onChange={e=>maj({derniere:e.target.value})}/></div>
+            <div><label style={{...S.lbl}}>Prochaine échéance</label><input type="date" style={{...S.inp}} value={h.prochaine||""} onChange={e=>maj({prochaine:e.target.value})}/></div>
+          </div>
+          <label style={{...S.lbl,marginTop:8}}>Organisme évaluateur</label>
+          <input style={{...S.inp}} value={h.organisme||""} onChange={e=>maj({organisme:e.target.value})}/>
+          {retard&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:800,marginTop:8}}>Échéance dépassée depuis le {fmt(normDate(h.prochaine))}.</div>}
+          <div style={{fontSize:12,color:C.mid,marginTop:8}}>Plan d'action : {faites} mesure(s) réalisée(s) sur {mes.length}.</div>
+        </div>
+        <div style={{...S.card,marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.dark,marginBottom:8}}>Ajouter une mesure</div>
+          <input style={{...S.inp,marginBottom:8}} value={hasMes} onChange={e=>setHasMes(e.target.value)} placeholder="Intitulé de la mesure corrective"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <input style={{...S.inp}} value={hasResp} onChange={e=>setHasResp(e.target.value)} placeholder="Responsable"/>
+            <input type="date" style={{...S.inp}} value={hasEch} onChange={e=>setHasEch(e.target.value)}/>
+          </div>
+          <button onClick={()=>{if(!hasMes.trim())return;maj({mesures:[...mes,{id:Date.now(),titre:hasMes.trim(),resp:hasResp.trim(),echeance:hasEch,statut:"À engager"}]});setHasMes("");setHasResp("");}} style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:8}}><Plus size={13}/>Ajouter</button>
+        </div>
+        {mes.map(m=>{const late=m.echeance&&m.statut!=="Réalisée"&&normDate(m.echeance)<isoToday();
+          return(<div key={m.id} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+(m.statut==="Réalisée"?"#2E7D32":late?"#C62828":C.gold)}}>
+          <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:150}}>
+              <div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>{m.titre}</div>
+              <div style={{fontSize:11.5,color:late?"#C62828":C.light,fontWeight:late?800:600}}>{m.resp||"—"}{m.echeance?" · échéance "+fmt(normDate(m.echeance)):""}{late?" — dépassée":""}</div>
+            </div>
+            <select value={m.statut} onChange={e=>maj({mesures:mes.map(x=>x.id===m.id?{...x,statut:e.target.value}:x)})} style={{...S.inp,width:"auto",fontSize:11.5,padding:"5px 9px",minHeight:0}}>{["À engager","En cours","Réalisée","Abandonnée"].map(x=><option key={x}>{x}</option>)}</select>
+            <button onClick={()=>{if(confirm("Supprimer cette mesure ?"))maj({mesures:mes.filter(x=>x.id!==m.id)});}} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+          </div>
+        </div>);})}
+      </div>);})()}
+
+    {tab==="rgpd"&&(()=>{
+      const reg=((etabConfig&&etabConfig.rgpd)||RGPD_DEFAUT);
+      const maj=(arr)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,rgpd:arr}));
+      const CH=[["finalite","Finalité du traitement"],["personnes","Catégories de personnes concernées"],["donnees","Catégories de données"],["destinataires","Destinataires"],["duree","Durée de conservation"],["securite","Mesures de sécurité"]];
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des activités de traitement</h3>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Article 30 du règlement général sur la protection des données. Il doit être tenu par écrit et mis à la disposition de l'autorité de contrôle sur demande.</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={()=>maj([...reg,{id:Date.now(),finalite:"",personnes:"",donnees:"",destinataires:"",duree:"",securite:""}])} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:140}}><Plus size={14}/>Traitement</button>
+            <button onClick={async()=>{try{await registreExcel("registre_traitements","Traitements","Registre des activités de traitement","Article 30 du RGPD",CH.map(c=>c[1]),reg.map(t=>CH.map(c=>t[c[0]]||"")),[34,30,40,30,26,34],etabConfig);tracer("Registre des activités de traitement","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+          </div>
+        </div>
+        {reg.map((t,i)=>(<div key={t.id||i} style={{...S.card,marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:800,color:C.goldDark,letterSpacing:"0.06em"}}>TRAITEMENT {i+1}</div>
+            <button onClick={()=>{if(confirm("Supprimer ce traitement ?"))maj(reg.filter((_,j)=>j!==i));}} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+          </div>
+          {CH.map(c=>(<div key={c[0]} style={{marginBottom:8}}>
+            <label style={{...S.lbl}}>{c[1]}</label>
+            <textarea key={(t.id||i)+c[0]} defaultValue={t[c[0]]||""} onBlur={e=>maj(reg.map((x,j)=>j===i?{...x,[c[0]]:e.target.value}:x))} style={{...S.inp,minHeight:46,resize:"vertical"}}/>
+          </div>))}
+        </div>))}
+      </div>);})()}
+
+    {tab==="exports"&&(()=>{
+      const log=((etabConfig&&etabConfig.exportLog)||[]).slice().reverse();
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Journal des exports</h3>
+          <div style={{fontSize:11.5,color:C.mid}}>Qui a extrait quoi, et quand. Les exports contiennent des données nominatives de mineurs : cette traçabilité est demandée en cas de contrôle. {log.length} entrée(s), les 200 dernières sont conservées.</div>
+          {log.length>0&&<button onClick={()=>{if(confirm("Vider le journal des exports ?"))onUpdateEtab&&onUpdateEtab(prev=>({...prev,exportLog:[]}));}} style={{...S.btnO,marginTop:10}}>Vider le journal</button>}
+        </div>
+        <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:420}}>
+            <thead><tr style={{background:C.sableLight}}>{["Date et heure","Document","Format","Par"].map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{log.map((l,i)=>(<tr key={i} style={{borderTop:"1px solid "+C.border}}>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid,whiteSpace:"nowrap"}}>{l.quand}</td>
+              <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{l.quoi}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.format}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{l.par}</td>
+            </tr>))}</tbody>
+          </table>
+          {log.length===0&&<div style={{fontSize:12,color:C.light,padding:"10px 8px"}}>Aucun export enregistré.</div>}
+        </div>
+      </div>);})()}
+
+    {tab==="docs-oblig"&&(()=>{
+      const meta=((etabConfig&&etabConfig.docsOblig)||{});
+      const majMeta=(k,p)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,docsOblig:{...((prev&&prev.docsOblig)||{}),[k]:{...(((prev&&prev.docsOblig)||{})[k]||{}),...p}}}));
+      const fichier=(k)=>(docs||[]).filter(d=>d.categorie==="Institutionnel"&&d.refDoc===k).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")))[0];
+      const charger=(k,e)=>{const f=e.target.files[0];if(!f)return;
+        if(f.type!=="application/pdf"){alert("Seuls les PDF sont acceptés.");e.target.value="";return;}
+        if(f.size>3*1024*1024){alert("Fichier trop volumineux (3 Mo maximum).");e.target.value="";return;}
+        const r=new FileReader();r.onload=()=>{onAddDoc({id:Date.now(),name:f.name,type:f.type,size:f.size,dataUrl:r.result,categorie:"Institutionnel",refDoc:k,destinataire:"Tous",deposePar:(currentUser&&currentUser.name)||"",date:new Date().toISOString(),signatures:[]});};
+        r.readAsDataURL(f);e.target.value="";};
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Documents institutionnels</h3>
+          <div style={{fontSize:11.5,color:C.mid}}>Les documents remis à la personne accueillie et ceux qui encadrent le fonctionnement de l'établissement. Le projet d'établissement est établi pour une durée maximale de cinq ans (art. L. 311-8 CASF).</div>
+        </div>
+        {DOCS_OBLIG.map(d=>{const m=meta[d.k]||{};const f=fichier(d.k);const age=anneesDepuis(m.dateRevision);
+          const perime=d.val>0&&age!==null&&age>=d.val;
+          return(<div key={d.k} style={{...S.card,marginBottom:8,borderLeft:"4px solid "+(perime?"#C62828":f?"#2E7D32":C.border)}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:170}}>
+                <div style={{fontSize:13.5,fontWeight:800,color:C.dark}}>{d.l}</div>
+                <div style={{fontSize:11,fontWeight:700,color:C.goldDark}}>{d.ref}</div>
+                {f?<div onClick={()=>ouvrirFichier(f)} style={{fontSize:12,color:C.goldDark,fontWeight:700,marginTop:4,cursor:"pointer"}}>{f.name} — ouvrir</div>
+                  :<div style={{fontSize:12,color:"#C62828",fontWeight:700,marginTop:4}}>Aucun fichier déposé</div>}
+              </div>
+              <label style={{...S.btnO,cursor:"pointer",fontSize:11.5,padding:"6px 12px",minHeight:0}}>Déposer<input type="file" accept="application/pdf,.pdf" style={{display:"none"}} onChange={e=>charger(d.k,e)}/></label>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+              <div><label style={{...S.lbl}}>Dernière révision</label><input type="date" style={{...S.inp}} value={m.dateRevision||""} onChange={e=>majMeta(d.k,{dateRevision:e.target.value})}/></div>
+              <div><label style={{...S.lbl}}>Validé par</label><input style={{...S.inp}} value={m.validePar||""} onChange={e=>majMeta(d.k,{validePar:e.target.value})}/></div>
+            </div>
+            {perime&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:800,marginTop:8}}>Révisé il y a {age} ans : la durée maximale de {d.val} ans est dépassée.</div>}
+          </div>);})}
+      </div>);})()}
+
+    {tab==="cvs"&&(()=>{
+      const cvs=((etabConfig&&etabConfig.cvs)||{membres:[],reunions:[],avis:[]});
+      const maj=(p)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,cvs:{...{membres:[],reunions:[],avis:[]},...((prev&&prev.cvs)||{}),...p}}));
+      const eig=(evenements||[]).filter(e=>e.gravite==="eig"||e.eig);
+      const avisFaits=(cvs.avis||[]).length;
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Conseil de la vie sociale</h3>
+          <div style={{fontSize:11.5,color:C.mid}}>Art. L. 311-6 CASF. Le conseil, ou à défaut les groupes d'expression, est avisé des dysfonctionnements graves déclarés aux autorités (art. L. 331-8-1).</div>
+          {eig.length>avisFaits&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:800,marginTop:8}}>{eig.length} événement(s) grave(s) déclaré(s) pour {avisFaits} avis consigné(s).</div>}
+        </div>
+        <div style={{...S.card,marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.dark,marginBottom:8}}>Membres ({(cvs.membres||[]).length})</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <input style={{...S.inp}} value={cvsNom} onChange={e=>setCvsNom(e.target.value)} placeholder="Nom du membre"/>
+            <input style={{...S.inp}} value={cvsQual} onChange={e=>setCvsQual(e.target.value)} placeholder="Collège / qualité"/>
+          </div>
+          <button onClick={()=>{if(!cvsNom.trim())return;maj({membres:[...(cvs.membres||[]),{id:Date.now(),nom:cvsNom.trim(),qualite:cvsQual.trim()}]});setCvsNom("");setCvsQual("");}} style={{...S.btnO,width:"100%",justifyContent:"center",marginTop:8}}><Plus size={13}/>Ajouter</button>
+          {(cvs.membres||[]).map(m=>(<div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"8px 0",borderTop:"1px solid "+C.border,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:140}}><div style={{fontSize:13,fontWeight:700,color:C.dark}}>{m.nom}</div><div style={{fontSize:11.5,color:C.light}}>{m.qualite||"—"}</div></div>
+            <button onClick={()=>maj({membres:(cvs.membres||[]).filter(x=>x.id!==m.id)})} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:15}}>✕</button>
+          </div>))}
+        </div>
+        <div style={{...S.card,marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.dark,marginBottom:8}}>Réunions ({(cvs.reunions||[]).length})</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+            <input type="date" style={{...S.inp}} value={cvsDate} onChange={e=>setCvsDate(e.target.value)}/>
+            <input style={{...S.inp}} value={cvsObjet} onChange={e=>setCvsObjet(e.target.value)} placeholder="Ordre du jour / relevé de décisions"/>
+          </div>
+          <button onClick={()=>{if(!cvsObjet.trim())return;maj({reunions:[...(cvs.reunions||[]),{id:Date.now(),date:cvsDate,objet:cvsObjet.trim(),par:(currentUser&&currentUser.name)||""}]});setCvsObjet("");}} style={{...S.btnO,width:"100%",justifyContent:"center",marginTop:8}}><Plus size={13}/>Consigner la réunion</button>
+          {(cvs.reunions||[]).slice().reverse().map(r=>(<div key={r.id} style={{padding:"8px 0",borderTop:"1px solid "+C.border}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{r.date?fmt(r.date):"—"}{r.par?" · "+r.par:""}</div>
+            <button onClick={()=>maj({reunions:(cvs.reunions||[]).filter(x=>x.id!==r.id)})} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:14}}>✕</button></div>
+            <div style={{fontSize:12.5,color:C.dark,marginTop:2}}>{r.objet}</div>
+          </div>))}
+        </div>
+        <div style={{...S.card}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.dark,marginBottom:8}}>Avis sur les dysfonctionnements graves ({avisFaits})</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+            <input type="date" style={{...S.inp}} value={cvsDate} onChange={e=>setCvsDate(e.target.value)}/>
+            <input style={{...S.inp}} value={cvsAvis} onChange={e=>setCvsAvis(e.target.value)} placeholder="Événement porté à la connaissance du conseil"/>
+          </div>
+          <button onClick={()=>{if(!cvsAvis.trim())return;maj({avis:[...(cvs.avis||[]),{id:Date.now(),date:cvsDate,objet:cvsAvis.trim(),par:(currentUser&&currentUser.name)||""}]});setCvsAvis("");}} style={{...S.btnP,width:"100%",justifyContent:"center",marginTop:8}}><Check size={13}/>Consigner l'avis</button>
+          {(cvs.avis||[]).slice().reverse().map(a=>(<div key={a.id} style={{padding:"8px 0",borderTop:"1px solid "+C.border}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8}}><div style={{fontSize:11,fontWeight:700,color:C.light}}>{a.date?fmt(a.date):"—"}{a.par?" · "+a.par:""}</div>
+            <button onClick={()=>maj({avis:(cvs.avis||[]).filter(x=>x.id!==a.id)})} style={{background:"none",border:"none",color:"#C62828",cursor:"pointer",fontWeight:800,fontSize:14}}>✕</button></div>
+            <div style={{fontSize:12.5,color:C.dark,marginTop:2}}>{a.objet}</div>
+          </div>))}
+        </div>
+      </div>);})()}
+
+    {tab==="annuaire"&&(()=>{
+      const pool=[...(jeunes||[]),...(appMajeurs||[])];
+      const tous=[];pool.forEach(p2=>contactsDe(p2).forEach(c=>tous.push({...c,benef:(p2.prenom||"")+" "+(p2.nom||""),site:p2.site||"",_uid:p2.id})));
+      const q=annQ.trim().toLowerCase();
+      const vus=tous.filter(c=>(annType==="Tous"||c.type===annType)&&(annSite==="Tous"||c.site===annSite)&&(annHebdo?c.rapportHebdo:true)
+        &&(!q||[c.nom,c.benef,c.fonction,c.tel,c.email].some(v=>String(v||"").toLowerCase().includes(q))))
+        .sort((a,b)=>String(a.benef).localeCompare(String(b.benef))||String(a.nom).localeCompare(String(b.nom)));
+      const mails=[...new Set(vus.map(c=>c.email).filter(Boolean))];
+      const ecrireGroupe=()=>{if(!mails.length){alert("Aucun courriel dans la sélection.");return;}
+        const sujet="Rapport hebdomadaire — "+((etabConfig&&etabConfig.raisonSociale)||"Association PDSR");
+        const corps="Bonjour,\\n\\nVeuillez trouver ci-joint le rapport hebdomadaire concernant le jeune que vous suivez.\\n\\nCordialement,\\n"+((currentUser&&currentUser.name)||"")+"\\n"+((etabConfig&&etabConfig.raisonSociale)||"Association PDSR");
+        window.location.href="mailto:?bcc="+encodeURIComponent(mails.join(","))+"&subject="+encodeURIComponent(sujet)+"&body="+encodeURIComponent(corps);};
+      const copier=()=>{const t=mails.join("; ");try{navigator.clipboard.writeText(t);alert(mails.length+" adresse(s) copiée(s).");}catch(e){prompt("Copiez les adresses :",t);}};
+      const cols=["Bénéficiaire","Site","Qualité","Nom","Fonction","Téléphone","Courriel","Hebdo"];
+      return(<div>
+        <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginBottom:12}}>
+          <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Annuaire des contacts</h3>
+          <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Tous les contacts des fiches jeunes et majeurs, réunis. {vus.length} contact(s) affiché(s), {mails.length} adresse(s) distincte(s).</div>
+          <input style={{...S.inp,marginBottom:8}} value={annQ} onChange={e=>setAnnQ(e.target.value)} placeholder="Rechercher un nom, un bénéficiaire, un numéro…"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <div><label style={{...S.lbl}}>Qualité</label><select style={{...S.inp}} value={annType} onChange={e=>setAnnType(e.target.value)}><option>Tous</option>{CONTACT_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+            <div><label style={{...S.lbl}}>Site</label><select style={{...S.inp}} value={annSite} onChange={e=>setAnnSite(e.target.value)}><option>Tous</option><option>Fatick</option><option>Djilass</option></select></div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:9,fontSize:13,fontWeight:700,color:C.dark,cursor:"pointer",padding:"9px 11px",borderRadius:8,background:annHebdo?C.goldLight:"transparent",border:"1.5px solid "+(annHebdo?C.gold:C.border)}}>
+            <input type="checkbox" checked={annHebdo} onChange={e=>setAnnHebdo(e.target.checked)} style={{accentColor:C.gold,width:17,height:17}}/>Destinataires du rapport hebdomadaire seulement</label>
+          <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+            <button onClick={ecrireGroupe} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:140}}><Send size={14}/>Écrire aux {mails.length}</button>
+            <button onClick={copier} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}>Copier les adresses</button>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+            <button onClick={async()=>{try{await registreExcel("annuaire_contacts","Annuaire","Annuaire des contacts","Fiches jeunes et majeurs",cols,vus.map(c=>[c.benef,c.site,c.type,c.nom,c.fonction||"",c.tel||"",c.email||"",c.rapportHebdo?"Oui":"Non"]),[24,12,26,24,22,16,30,8],etabConfig);tracer("Annuaire des contacts","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+            <button onClick={async()=>{try{await registreConsignPDF("securite",[],etabConfig);}catch(e){}}} style={{display:"none"}}/>
+          </div>
+        </div>
+        <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:620}}>
+            <thead><tr style={{background:C.sableLight}}>{cols.map(h=><th key={h} style={{fontSize:11,fontWeight:800,color:C.mid,textAlign:"left",padding:"6px 8px",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{vus.map(c=>(<tr key={c._uid+"-"+c.id} style={{borderTop:"1px solid "+C.border}}>
+              <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark,whiteSpace:"nowrap"}}>{c.benef}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{c.site||"—"}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{c.type}</td>
+              <td style={{padding:"6px 8px",fontSize:12.5,fontWeight:700,color:C.dark}}>{c.nom}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:C.mid}}>{c.fonction||"—"}</td>
+              <td style={{padding:"6px 8px",fontSize:12,whiteSpace:"nowrap"}}>{c.tel?<a href={"tel:"+c.tel} style={{color:C.goldDark,fontWeight:700,textDecoration:"none"}}>{c.tel}</a>:"—"}</td>
+              <td style={{padding:"6px 8px",fontSize:12}}>{c.email?<a href={"mailto:"+c.email} style={{color:C.goldDark,fontWeight:700,textDecoration:"none"}}>{c.email}</a>:"—"}</td>
+              <td style={{padding:"6px 8px",fontSize:11,fontWeight:800,color:c.rapportHebdo?"#2E7D32":C.light}}>{c.rapportHebdo?"Oui":"—"}</td>
+            </tr>))}</tbody>
+          </table>
+          {vus.length===0&&<div style={{fontSize:12,color:C.light,padding:"10px 8px"}}>Aucun contact ne correspond.</div>}
         </div>
       </div>);})()}
 
@@ -1951,7 +2258,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des personnes accueillies</h3>
             <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 331-2 CASF : identité des personnes séjournant dans l'établissement, date d'entrée et date de sortie. Coté et paraphé par le maire (art. R. 331-5). Tenu en permanence à la disposition des autorités judiciaires et administratives. Les agents de contrôle le signent et y consignent leurs observations (art. L. 331-3).</div>
             {sansEntree>0&&<div style={{fontSize:11.5,color:"#C62828",fontWeight:700,marginTop:8}}>{sansEntree} fiche(s) sans date d'entrée : le registre est incomplet.</div>}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePDF(accueil,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnes_accueillies","Personnes accueillies","Registre des personnes accueillies","Art. L. 331-2 CASF",["N°","Nom","Prénom","Site","Entrée","Sortie"],accueil.map((l,i)=>[i+1,l.nom,l.prenom,l.site,l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,22,20,12,14,14],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePDF(accueil,etabConfig);tracer("Registre des personnes accueillies","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnes_accueillies","Personnes accueillies","Registre des personnes accueillies","Art. L. 331-2 CASF",["N°","Nom","Prénom","Site","Entrée","Sortie"],accueil.map((l,i)=>[i+1,l.nom,l.prenom,l.site,l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,22,20,12,14,14],etabConfig);tracer("Registre des personnes accueillies","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
           </div>
           <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:460}}>
@@ -1980,7 +2287,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <input style={{...S.inp}} value={depObjet} onChange={e=>setDepObjet(e.target.value)} placeholder="Téléphone, papiers d'identité, somme d'argent…"/>
             <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
               <button onClick={ajoutDepot} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Plus size={14}/>Enregistrer le dépôt</button>
-              <button onClick={async()=>{try{await registreDepotsPDF(depots,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_depots","Dépôts","Registre des dépôts de biens et valeurs","Art. L. 1113-1 et R. 1113-1 à R. 1113-9 CSP",["N°","Bénéficiaire","Objet déposé","Déposé le","Reçu par","Restitué le","Restitué par"],depots.map((l,i)=>[i+1,l.qui,l.objet,l.date?fmt(l.date):"",l.recuPar||"",l.restitueLe?fmt(l.restitueLe):"",l.restituePar||""]),[6,24,34,14,20,14,20],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+              <button onClick={async()=>{try{await registreDepotsPDF(depots,etabConfig);tracer("Registre des dépôts","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_depots","Dépôts","Registre des dépôts de biens et valeurs","Art. L. 1113-1 et R. 1113-1 à R. 1113-9 CSP",["N°","Bénéficiaire","Objet déposé","Déposé le","Reçu par","Restitué le","Restitué par"],depots.map((l,i)=>[i+1,l.qui,l.objet,l.date?fmt(l.date):"",l.recuPar||"",l.restitueLe?fmt(l.restitueLe):"",l.restituePar||""]),[6,24,34,14,20,14,20],etabConfig);tracer("Registre des dépôts de biens et valeurs","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
             </div>
           </div>
           {depots.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucun dépôt enregistré.</div>}
@@ -2010,7 +2317,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             </div>
             <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
               <button onClick={ajoutCg} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Plus size={14}/>Consigner</button>
-              <button onClick={async()=>{try{await registreConsignPDF(cgType,lignesCg,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_"+cgType,t.l.slice(0,28),"Registre — "+t.l,t.ref,["N°","Date","Objet de la consignation","Suites données","Consigné par"],lignesCg.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.objet||"",l.suites||"",l.par||""]),[6,14,60,40,22],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
+              <button onClick={async()=>{try{await registreConsignPDF(cgType,lignesCg,etabConfig);tracer("Registre {cgType}","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_"+cgType,t.l.slice(0,28),"Registre — "+t.l,t.ref,["N°","Date","Objet de la consignation","Suites données","Consigné par"],lignesCg.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.objet||"",l.suites||"",l.par||""]),[6,14,60,40,22],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:120}}><Download size={14}/>Excel</button>
             </div>
           </div>
           {lignesCg.length===0&&<div style={{...S.card,fontSize:12,color:C.light}}>Aucune consignation dans ce registre.</div>}
@@ -2031,7 +2338,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre unique du personnel</h3>
             <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 1221-13 du code du travail : les nom et prénoms de tous les salariés sont inscrits dans l'ordre des embauches. Les mentions sont portées de façon indélébile et conservées cinq ans après le départ du salarié.</div>
             <div style={{fontSize:11.5,color:"#C62828",fontWeight:700,marginTop:8}}>Les dates d'embauche et de sortie se renseignent sur la fiche de chaque compte. Celles qui manquent apparaissent en rouge.</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePersonnelPDF(personnel,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnel","Personnel","Registre unique du personnel","Art. L. 1221-13 et D. 1221-23 du code du travail",["N°","Nom et prénom","Emploi","Site","Entrée","Sortie"],personnel.map((l,i)=>[i+1,l.nom,l.emploi,l.site||"",l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,28,22,12,14,14],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registrePersonnelPDF(personnel,etabConfig);tracer("Registre unique du personnel","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_personnel","Personnel","Registre unique du personnel","Art. L. 1221-13 et D. 1221-23 du code du travail",["N°","Nom et prénom","Emploi","Site","Entrée","Sortie"],personnel.map((l,i)=>[i+1,l.nom,l.emploi,l.site||"",l.entree?fmt(l.entree):"",l.sortie?fmt(l.sortie):""]),[6,28,22,12,14,14],etabConfig);tracer("Registre unique du personnel","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
           </div>
           <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}>
@@ -2053,7 +2360,7 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
             <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Registre des dysfonctionnements graves</h3>
             <div style={{fontSize:11.5,color:C.mid,lineHeight:1.55}}>Art. L. 331-8-1 CASF : les dysfonctionnements graves et les événements ayant pour effet de menacer ou compromettre la santé, la sécurité ou le bien-être des personnes accueillies sont déclarés sans délai aux autorités. Le conseil de la vie sociale, ou à défaut les groupes d'expression, en sont avisés.</div>
             {eig.filter(e=>!e.transmisLe).length>0&&<div style={{fontSize:12,color:"#C62828",fontWeight:800,marginTop:8}}>{eig.filter(e=>!e.transmisLe).length} événement(s) non transmis aux autorités.</div>}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registreEIGPDF(eig,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_dysfonctionnements","Dysfonctionnements","Registre des dysfonctionnements graves","Art. L. 331-8-1 CASF",["N°","Date","Bénéficiaire","Nature des faits","Transmis le","Destinataires"],eig.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.qui,l.nature,l.transmisLe?fmt(l.transmisLe):"NON TRANSMIS",l.destinataires||""]),[6,14,24,60,16,30],etabConfig);}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}><button onClick={async()=>{try{await registreEIGPDF(eig,etabConfig);tracer("Registre des dysfonctionnements","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF</button><button onClick={async()=>{try{await registreExcel("registre_dysfonctionnements","Dysfonctionnements","Registre des dysfonctionnements graves","Art. L. 331-8-1 CASF",["N°","Date","Bénéficiaire","Nature des faits","Transmis le","Destinataires"],eig.map((l,i)=>[i+1,l.date?fmt(l.date):"",l.qui,l.nature,l.transmisLe?fmt(l.transmisLe):"NON TRANSMIS",l.destinataires||""]),[6,14,24,60,16,30],etabConfig);tracer("Registre des dysfonctionnements graves","Excel");}catch(err){alert("Excel impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel</button></div>
           </div>
           <div style={{...S.card,padding:"6px 4px",overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}>
@@ -2139,12 +2446,12 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
           <div style={{fontSize:13.5,fontWeight:800,color:C.dark,marginBottom:4}}>Exporter les plannings</div>
           <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>Un classeur Excel, une feuille par site, regroupé par mois : date, jour, équipe A, équipe B, congé, observations.</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
-            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:"Fatick",plan:fatPlan},{nom:"Djilass",plan:djiPlan}],etabConfig);tracer("Planning","Excel");}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnP,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Les deux sites</button>
+            <button onClick={async()=>{try{await planningExcel([{nom:planSite,plan:planSite==="Djilass"?djiPlan:fatPlan}],etabConfig);tracer("Planning","Excel");}catch(err){alert("Export impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>Excel — {planSite} seul</button>
           </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
-            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);await planningPDF("Djilass",djiPlan,etabConfig);}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
+            <button onClick={async()=>{try{await planningPDF(planSite,planSite==="Djilass"?djiPlan:fatPlan,etabConfig);tracer("Planning","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — {planSite}</button>
+            <button onClick={async()=>{try{await planningPDF("Fatick",fatPlan,etabConfig);tracer("Planning","PDF");await planningPDF("Djilass",djiPlan,etabConfig);tracer("Planning","PDF");}catch(err){alert("PDF impossible : "+(err&&err.message?err.message:err));}}} style={{...S.btnO,flex:1,justifyContent:"center",minWidth:150}}><Download size={14}/>PDF — les deux</button>
           </div>
         </div>
       </div>);})()}
@@ -2298,6 +2605,11 @@ const[entSel,setEntSel]=useState("");const[entOpen,setEntOpen]=useState(null);co
     })()}
 
     {tab==="config"&&(()=>{const set=(f,v)=>onUpdateEtab&&onUpdateEtab(prev=>({...prev,[f]:v}));const fields=[["raisonSociale","Raison sociale"],["sousTitre","Sous-titre / objet"],["finess","N° FINESS"],["directeur","Directeur (signataire)"],["adresse","Adresse"],["ville","Code postal / Ville"],["tel","Téléphone"],["email","Email"]];return(<div>
+      <div style={{...S.card,borderLeft:"4px solid "+C.gold,marginTop:12}}>
+        <h3 style={{fontSize:13.5,fontWeight:800,margin:"0 0 4px",color:C.dark}}>Champs obligatoires à l'admission</h3>
+        <div style={{fontSize:11.5,color:C.mid,marginBottom:10}}>La création d'une fiche jeune est refusée tant que ces champs ne sont pas renseignés. La date d'entrée conditionne les échéances du projet personnalisé et le registre L. 331-2.</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{ADM_CHAMPS.map(ch=>{const on=admRequis(etabConfig).indexOf(ch.k)>=0;return<button key={ch.k} onClick={()=>{const cur=admRequis(etabConfig);const nx=on?cur.filter(x=>x!==ch.k):[...cur,ch.k];if(onUpdateEtab)onUpdateEtab(prev=>({...prev,admissionRequis:nx}));}} style={{padding:"7px 13px",borderRadius:16,border:"1.5px solid "+(on?C.goldDark:C.border),background:on?C.goldLight:C.white,color:on?C.goldDark:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{on?"\u2713 ":""}{ch.l}</button>;})}</div>
+      </div>
       <div style={{fontWeight:700,fontSize:15,marginBottom:4,color:C.dark}}>Identité de l'établissement</div>
       <div style={{fontSize:12,color:C.light,marginBottom:14}}>Ces informations identifient l'association. Elles sont enregistrées et synchronisées, et serviront de source pour les documents générés.</div>
       <div style={{...S.card}}>
@@ -2465,7 +2777,8 @@ function MajeurDetail({majeur,rapports,presences,evenements,user,onBack,onAddR,o
  <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto",paddingBottom:4,flexWrap:"wrap"}}>{tabs.map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${tab===t?C.gold:C.border}`,background:tab===t?C.gold:C.white,color:tab===t?C.white:C.mid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"capitalize"}}>{t==="presences"?"Présences":t}</button>)}</div>
  {tab==="fiche"&&<div style={{...S.card}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{[["Prénom",majeur.prenom],["Nom",majeur.nom||"-"],["Site",majeur.site],["Statut",majeur.statut],["Début",majeur.dateDebut||"-"],["Fin",majeur.dateFin||"-"],["Email ASE",majeur.emailASE||"-"],["Tel parent",majeur.telParent1||"-"],["Tel jeune",majeur.telJeune||"-"],["Référent A",majeur.referentA||"-"],["Référent B",majeur.referentB||"-"]].map(([k,v])=><div key={k}><div style={{fontSize:11.5,fontWeight:700,color:C.light,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{k}</div><div style={{fontWeight:700,color:C.dark,fontSize:13}}>{v}</div></div>)}</div></div>}
  {tab==="rapports"&&<div>{showFormR?<div style={{...S.card,borderLeft:`4px solid ${C.gold}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Nouveau rapport</div><label style={{...S.lbl}}>Date</label><input type="date" value={rDate} onChange={e=>setRDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Type de contact</label><select value={rTC} onChange={e=>setRTC(e.target.value)} style={{...S.inp,marginBottom:8}}><option value="journee">Journée du jeune</option><option value="rdv_parents">RDV tél. parents</option><option value="rdv_exterieur">RDV tél. contact ext.</option></select><label style={{...S.lbl}}>Observation</label><textarea value={rObs} onChange={e=>setRObs(e.target.value)} placeholder="Observation..." rows={4} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><button onClick={submitR} style={{...S.btnP,background:"#2E7D32",borderColor:"#2E7D32"}}>Enregistrer</button><button onClick={()=>setShowFormR(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{mr.length===0&&!showFormR?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun rapport</div>:mr.map(r=><div key={r.id} style={{...S.card,marginBottom:8}}><div style={{fontSize:12,color:C.gold,fontWeight:700,marginBottom:5}}>{fmt(r.date)} · {TC_LABELS[r.typeContact]||"Journalier"}{r.author&&<span style={{fontWeight:400,fontSize:12,color:C.light,marginLeft:8}}>par {r.author}</span>}</div><p style={{margin:0,fontSize:13,color:C.dark,lineHeight:1.6}}>{r.observation}</p></div>)}{!showFormR&&<button onClick={()=>setShowFormR(true)} style={{...S.btnP,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Nouveau rapport</button>}</div>}
- {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[]} majeurs={[majeur]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={majeur.id}/>}
+ {tab==="fiche"&&<ContactsPanel sujet={majeur} user={user} onUpdate={onUpdateMajeur}/>}
+      {tab==="projet"&&<ProjetsPersonnalises user={user} jeunes={[]} majeurs={[majeur]} projets={projets} onUpdate={onUpdateProjets} etabConfig={etabConfig} users={users} fixedId={majeur.id}/>}
       {tab==="stages"&&<StagesPanel sujet={majeur} user={user} users={users} onUpdate={onUpdateMajeur} etabConfig={etabConfig}/>}
       {tab==="incidents"&&<div>{showFormE?<div style={{...S.card,borderLeft:`4px solid ${C.orange}`,marginBottom:8}}><div style={{fontWeight:800,marginBottom:8,color:C.dark}}>Déclarer un événement</div><label style={{...S.lbl}}>Date</label><input type="date" value={eDate} onChange={e=>setEDate(e.target.value)} style={{...S.inp,marginBottom:8}}/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}><div><label style={{...S.lbl}}>Type</label><select value={eType} onChange={e=>setEType(e.target.value)} style={{...S.inp}}><option value="incident">Incident</option><option value="plainte">Plainte</option><option value="reclamation">Réclamation</option></select></div><div><label style={{...S.lbl}}>Gravité</label><select value={eGrav} onChange={e=>setEGrav(e.target.value)} style={{...S.inp}}><option>Léger</option><option>Moyen</option><option>Grave</option></select></div></div><label style={{...S.lbl}}>Qualification</label><select value={eEig?"oui":"non"} onChange={e=>setEEig(e.target.value==="oui")} style={{...S.inp,marginBottom:8}}><option value="non">Événement indésirable simple</option><option value="oui">EIG — signalement obligatoire (art. L331-8-1 CASF)</option></select><label style={{...S.lbl}}>Titre</label><input value={eTitre} onChange={e=>setETitre(e.target.value)} placeholder="Titre" style={{...S.inp,marginBottom:8}}/><label style={{...S.lbl}}>Description</label><textarea value={eDesc} onChange={e=>setEDesc(e.target.value)} placeholder="Description..." rows={3} style={{...S.inp,marginBottom:8,resize:"vertical"}}/><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><button onClick={submitE} style={{...S.btnP}}>Enregistrer</button><button onClick={()=>setShowFormE(false)} style={{...S.btnO}}>Annuler</button></div></div>:null}{me.length===0&&!showFormE?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucun incident</div>:me.map(e=>{const gc=GC[e.gravite]||GC["Léger"];return(<div key={e.id} style={{...S.card,marginBottom:8,borderLeft:`4px solid ${gc.dot}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap"}}><span style={{fontWeight:800,color:C.dark}}>{e.titre}</span><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{e.eig&&<span style={{background:"#C62828",color:"#fff",borderRadius:4,padding:"2px 8px",fontSize:11.5,fontWeight:800}}>EIG</span>}<span style={{background:gc.bg,color:gc.text,borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{GC[e.gravite]?e.gravite:"Léger"}</span></div></div><div style={{fontSize:12,color:C.mid,marginTop:4}}>{e.description}</div><div style={{fontSize:11.5,color:C.light,marginTop:4}}>{fmt(e.date)}{e.author&&" — par "+e.author}</div></div>);})}{!showFormE&&<button onClick={()=>setShowFormE(true)} style={{...S.btnO,width:"100%",marginTop:8,justifyContent:"center"}}><Plus size={15}/>Déclarer un événement</button>}</div>}
  {tab==="presences"&&<div>{Object.keys(mp).length===0?<div style={{...S.card,textAlign:"center",color:C.light}}>Aucune présence enregistrée</div>:<div style={{...S.card}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Date</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Matin</th><th style={{textAlign:"center",padding:6,borderBottom:"2px solid #ddd",fontSize:12,color:C.light}}>Après-midi</th></tr></thead><tbody>{Object.entries(mp).sort(([a],[b])=>b.localeCompare(a)).map(([d,v])=><tr key={d}><td style={{padding:6,borderBottom:"1px solid #eee",fontSize:12}}>{d}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.a?"✅":"❌"}</td><td style={{textAlign:"center",padding:6,borderBottom:"1px solid #eee"}}>{v.b?"✅":"❌"}</td></tr>)}</tbody></table></div>}</div>}
@@ -2545,8 +2858,8 @@ const XLSX=await loadXLSX();
 const wb=XLSX.utils.book_new();
 if(chkRapportsJ){
   const sorted=fRFiltered.sort((a,b)=>a.date.localeCompare(b.date));
-  const rowsR=[["Date","Site","Semaine séjour","Jeune","Type de contact","Observation","Horodatage","Auteur"]];
-  sorted.forEach(r=>{const st=jSite(r.jeuneId);rowsR.push([r.date,st,sejWeek(r.date,st),jName(r.jeuneId),TC_LABELS[r.typeContact||"journee"]||r.typeContact||"Journée",r.observation||"",r.horodatage||r.createdAt||"",r.author||""]);});
+  const rowsR=[["Date","Site","Semaine séjour","Jeune","Type de contact","Observation","Horodatage","Auteur","Destinataires rapport hebdo","Téléphones","Courriels"]];
+  sorted.forEach(r=>{const st=jSite(r.jeuneId);const dst=destinatairesRapport(allJ.find(x=>x.id===r.jeuneId));rowsR.push([r.date,st,sejWeek(r.date,st),jName(r.jeuneId),TC_LABELS[r.typeContact||"journee"]||r.typeContact||"Journée",r.observation||"",r.horodatage||r.createdAt||"",r.author||"",contactsTxt(dst,"nom"),contactsTxt(dst,"tel"),contactsTxt(dst,"email")]);});
   const ws=XLSX.utils.aoa_to_sheet(rowsR);
   ws["!cols"]=[{wch:12},{wch:10},{wch:12},{wch:25},{wch:28},{wch:60},{wch:20},{wch:20}];
   ws["!autofilter"]={ref:"A1:H"+rowsR.length};
@@ -3317,7 +3630,7 @@ const checkIntegrity=async()=>{try{const d=await fbGet("data")||{};const loc=col
         {page==="pres-educ"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<PresEduc user={effUser} users={appUsers} entries={suiviEduc} onSave={r=>{setSuiviEduc(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now(),type:"suiviEduc",origId:id,date:new Date().toISOString()}]);setSuiviEduc(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="rapport-site"&&(effUser.role==="coordinateur_site"||effUser.role==="chef_service"||effUser.role==="directeur")&&<RapportSite user={effUser} rapportsSite={rapportsSite} onSave={r=>{const isNew=!(rapportsSite||[]).some(x=>x.id===r.id);setRapportsSite(prev=>{const idx=prev.findIndex(x=>x.id===r.id);if(idx>=0){const cp=[...prev];cp[idx]=r;return cp;}return[...prev,r];});if(isNew)pushNotif("rapport_site","Rapport de site déposé",(r.site||"")+((r.semaine||r.periode)?" · "+(r.semaine||r.periode):""),r.site||"");}} onDelete={id=>{setDeletionLogs(prev=>[...prev,{id:"dl_"+Date.now()+"_rapportSite_"+id,type:"rapportSite",origId:id,date:new Date().toISOString()}]);setRapportsSite(prev=>prev.filter(x=>x.id!==id));}}/>}
         {page==="export"&&(effUser.role==="directeur"||effUser.role==="chef_service"||effUser.role==="coordinateur_site")&&<ExportPage peutPurger={!!effUser.isAdmin} purgeRanges={(purgeMarks&&purgeMarks.ranges)||[]} onCancelRange={(ts)=>{if(!effUser||!effUser.isAdmin){alert("Seul l'administrateur peut annuler une purge.");return;}setPurgeMarks(prev=>({...prev,ranges:(prev.ranges||[]).filter(r=>r.ts!==ts)}));}} sejourConfig={sejourConfig} rapports={rapports} evenements={evenements} agenda={agenda} jeunes={appJeunes} majeurs={appMajeurs} rapportsSite={rapportsSite} onPurge={(from,to,scope)=>{const sc=scope||{rapports:true,evenements:true,agenda:true};const ts=nowSrv();purgeIntent.current=true;setPurgeMarks(prev=>({...prev,lastPurge:ts,ranges:[...(prev&&prev.ranges||[]),{t:[sc.rapports&&"rapport",sc.evenements&&"evenement",sc.agenda&&"agenda",sc.rapportsSite&&"rapportSite"].filter(Boolean),from,to,ts}].slice(-15)}));const base=Date.now();const mk=(arr,type)=>(arr||[]).filter(x=>x&&x.date>=from&&x.date<=to&&x.id!=null).map(x=>({id:"dl_"+base+"_"+type+"_"+x.id,type,origId:x.id,date:ts}));const tombs=[];if(sc.rapports)tombs.push(...mk(rapports,"rapport"));if(sc.evenements)tombs.push(...mk(evenements,"evenement"));if(sc.agenda)tombs.push(...mk(agenda,"agenda"));if(sc.rapportsSite)tombs.push(...mk(rapportsSite,"rapportSite"));if(tombs.length)setDeletionLogs(prev=>[...prev,...tombs]);if(sc.rapports)setRapports(p=>p.filter(r=>r.date<from||r.date>to));if(sc.evenements)setEvenements(p=>p.filter(e=>e.date<from||e.date>to));if(sc.agenda)setAgenda(p=>p.filter(a=>a.date<from||a.date>to));if(sc.rapportsSite)setRapportsSite(p=>p.filter(r=>r.date<from||r.date>to));}}/>}
-      {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin djiPlan={appDjiPlan} fatPlan={appFatPlan} onBulkPlan={(siteName,maj)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,...maj}));else setAppFatPlan(prev=>({...prev,...maj}));}} currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onResetGlobal={async()=>{
+      {page==="admin"&&(effUser.role==="directeur"||effUser.role==="chef_service")&&<Admin docs={docs} onAddDoc={(d)=>setDocs(p=>[...(p||[]),d])} djiPlan={appDjiPlan} fatPlan={appFatPlan} onBulkPlan={(siteName,maj)=>{if(siteName==="Djilass")setAppDjiPlan(prev=>({...prev,...maj}));else setAppFatPlan(prev=>({...prev,...maj}));}} currentUser={effUser} isAdmin={effUser.isAdmin} onRefresh={refreshAll} etabConfig={etabConfig} onUpdateEtab={setEtabConfig} onArchiveSejour={async(label)=>{setSyncMsg("Archivage du séjour…");try{const snap={...collectData(),archivedAt:new Date().toISOString(),label:label||("Séjour "+today)};await fbSet("archives/"+Date.now(),snap);const blob=new Blob([JSON.stringify(snap,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="archive_sejour_"+today+".json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setSyncMsg("✓ Séjour archivé (cloud + fichier)");}catch(e){setSyncMsg("✗ Échec de l'archivage");}setTimeout(()=>setSyncMsg(null),4000);}} onViewAs={(u)=>{setViewAs(u);setPage("dashboard");setSel(null);setOpen(false);}} onForcePush={forcePush} onForcePull={forcePull} onCheckIntegrity={checkIntegrity} onBackup={collectData} onRestore={restoreData} rapports={rapports} evenements={evenements} sejourConfig={sejourConfig} onUpdateSejours={(s,d)=>setSejourConfig(p=>({...p,[s]:{...(p&&p[s]||{}),dateDebut:d}}))} users={appUsers} jeunes={appJeunes} onUpdateUsers={setAppUsers} onUpdateJeunes={setAppJeunes} loginLogs={loginLogs} appMajeurs={appMajeurs} onUpdateMajeurs={(id,field,val,fullArr)=>{if(fullArr){setAppMajeurs(fullArr);}else{setAppMajeurs(prev=>(prev||MAJEURS).map(m=>m.id===id?{...m,[field]:val}:m));}}} deletionLogs={deletionLogs} onResetGlobal={async()=>{
    const stamp=Date.now();
    setAppJeunes([]);setAppMajeurs([]);setRapports([]);setEvenements([]);setPresences([]);setProjets([]);setAgenda([]);
    try{localStorage.removeItem(LS_KEY);}catch(e){}
